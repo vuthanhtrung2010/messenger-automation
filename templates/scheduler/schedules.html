@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Message Schedules - Messenger Automation{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Scheduled Messages</h1>
+            <p class="text-xs text-slate-400 mt-1">Configure automated Facebook Messenger dispatches for special events, birthdays, or recurring reminders (GMT+7).</p>
+        </div>
+    </div>
+
+    <!-- Create Schedule Form -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <h2 class="text-sm font-semibold text-white mb-3">Schedule a New Message</h2>
+        <form method="post" action="/schedules/create/" class="space-y-4">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Recipient Selection: Shows Recipient Name first! -->
+                <div>
+                    <label for="recipient_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                        Select Recipient (By Name)
+                    </label>
+                    <select id="recipient_id" name="recipient_id" required class="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                        {% for thread in threads %}
+                        <option value="{{ thread.id }}">
+                            {% if thread.recipient_name %}
+                                {{ thread.recipient_name }} (Thread: {{ thread.thread_id }})
+                            {% else %}
+                                Thread: {{ thread.thread_id }} (Name pending fetch)
+                            {% endif %}
+                        </option>
+                        {% empty %}
+                        <option value="" disabled selected>No recipients found. Please add a thread ID in "Recipients & Threads" first.</option>
+                        {% endfor %}
+                    </select>
+                    <p class="text-[11px] text-slate-500 mt-1">Can't find a recipient? <a href="/threads/" class="text-blue-400 hover:underline">Add thread ID first &rarr;</a></p>
+                </div>
+
+                <!-- Recurrence Rule -->
+                <div>
+                    <label for="schedule_type" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Schedule Frequency</label>
+                    <select id="schedule_type" name="schedule_type" onchange="toggleScheduleFields()" class="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                        <option value="ONCE">One-off Event (Specific Calendar Date)</option>
+                        <option value="DAILY">Daily (Repeats every day)</option>
+                        <option value="MONTHLY">Monthly (Specific day of each month)</option>
+                        <option value="YEARLY">Yearly (Annual Event / Birthday)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Dynamic Date / Time / Day Selectors -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div id="field-date">
+                    <label for="run_date" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Target Date</label>
+                    <input type="date" id="run_date" name="run_date" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="run_time" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Time (GMT+7 Asia/Bangkok)</label>
+                    <input type="time" id="run_time" name="run_time" value="08:00" required class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div id="field-day" class="hidden">
+                    <label for="day_of_month" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Day of Month (1-31)</label>
+                    <input type="number" id="day_of_month" name="day_of_month" min="1" max="31" placeholder="1" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Message Template -->
+            <div>
+                <div class="flex justify-between items-center mb-1">
+                    <label for="message_template" class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Message Content</label>
+                    <span class="text-[11px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">Supports {name} placeholder</span>
+                </div>
+                <textarea id="message_template" name="message_template" rows="3" placeholder="e.g. Happy Birthday {name}! Wishing you joy, success and happiness on your special day!" required class="w-full px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500"></textarea>
+            </div>
+
+            <div class="flex justify-end">
+                <button type="submit" class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-all shadow-lg shadow-blue-600/20">
+                    Create Schedule
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Schedules Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
+            <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider">
+                <tr>
+                    <th class="py-3 px-4">Recipient Name</th>
+                    <th class="py-3 px-4">Message Template</th>
+                    <th class="py-3 px-4">Recurrence</th>
+                    <th class="py-3 px-4">Next Due (GMT+7)</th>
+                    <th class="py-3 px-4">Status</th>
+                    <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">
+                {% for s in schedules %}
+                <tr class="hover:bg-slate-800/40 transition-colors">
+                    <td class="py-3 px-4">
+                        <span class="font-semibold text-white block">{{ s.recipient.display_name }}</span>
+                        <span class="text-[11px] text-slate-400">Via {{ s.account.name }}</span>
+                    </td>
+                    <td class="py-3 px-4 max-w-xs truncate text-xs text-slate-300">
+                        {{ s.message_template }}
+                    </td>
+                    <td class="py-3 px-4 text-xs font-mono">
+                        {{ s.schedule_type }} @ {{ s.run_time|time:"H:i" }}
+                    </td>
+                    <td class="py-3 px-4 text-xs font-mono text-blue-400">
+                        {{ s.next_run_at|date:"d M Y, H:i"|default:"Completed" }}
+                    </td>
+                    <td class="py-3 px-4">
+                        {% if s.status == 'ACTIVE' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
+                            Active
+                        </span>
+                        {% elif s.status == 'PAUSED' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                            Paused
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-950 text-blue-400 border border-blue-800">
+                            Completed
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 px-4 text-right space-x-2">
+                        <a href="/schedules/{{ s.id }}/test-send/" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 border border-slate-700" title="Send immediate test message">
+                            Send Now
+                        </a>
+                        <a href="/schedules/{{ s.id }}/toggle/" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-amber-400 border border-slate-700">
+                            {% if s.status == 'ACTIVE' %}Pause{% else %}Resume{% endif %}
+                        </a>
+                        <form method="post" action="/schedules/{{ s.id }}/delete/" class="inline" onsubmit="return confirm('Delete this scheduled message?');">
+                            {% csrf_token %}
+                            <button type="submit" class="px-2 py-1 rounded text-xs text-red-400 hover:bg-red-900/30">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="py-8 text-center text-xs text-slate-500">
+                        No schedules created yet. Fill out the form above to schedule your first automated message!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function toggleScheduleFields() {
+    const type = document.getElementById('schedule_type').value;
+    const dateField = document.getElementById('field-date');
+    const dayField = document.getElementById('field-day');
+
+    if (type === 'ONCE' || type === 'YEARLY') {
+        dateField.classList.remove('hidden');
+        dayField.classList.add('hidden');
+    } else if (type === 'MONTHLY') {
+        dateField.classList.add('hidden');
+        dayField.classList.remove('hidden');
+    } else {
+        dateField.classList.add('hidden');
+        dayField.classList.add('hidden');
+    }
+}
+document.addEventListener('DOMContentLoaded', toggleScheduleFields);
+</script>
+{% endblock %}

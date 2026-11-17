@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}Delivery Logs - Messenger Automation{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Delivery Logs & History</h1>
+            <p class="text-xs text-slate-400 mt-1">Audit trail of all message dispatches, statuses, and error traces.</p>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
+            <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider">
+                <tr>
+                    <th class="py-3 px-4">Attempted At (GMT+7)</th>
+                    <th class="py-3 px-4">Recipient</th>
+                    <th class="py-3 px-4">Rendered Content</th>
+                    <th class="py-3 px-4">Status</th>
+                    <th class="py-3 px-4">Error / Details</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">
+                {% for log in logs %}
+                <tr class="hover:bg-slate-800/40 transition-colors">
+                    <td class="py-3 px-4 text-xs font-mono text-slate-400">
+                        {{ log.attempted_at|date:"d M Y, H:i:s" }}
+                    </td>
+                    <td class="py-3 px-4 font-semibold text-white">
+                        {{ log.recipient_thread.display_name }}
+                    </td>
+                    <td class="py-3 px-4 text-xs text-slate-300 max-w-sm truncate">
+                        {{ log.rendered_content }}
+                    </td>
+                    <td class="py-3 px-4">
+                        {% if log.status == 'SUCCESS' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
+                            Success
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-red-950 text-red-400 border border-red-800">
+                            Failed
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 px-4 text-xs text-slate-400">
+                        {% if log.error_message %}
+                        <span class="text-red-400 block truncate max-w-xs" title="{{ log.error_message }}">{{ log.error_message }}</span>
+                        {% else %}
+                        <span class="text-slate-500">Delivered without error</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="py-8 text-center text-xs text-slate-500">
+                        No delivery logs recorded yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
