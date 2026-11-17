@@ -1,7 +1,11 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-messenger-automation-key-92834710")
 
@@ -56,24 +60,40 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-# Database Configuration: PostgreSQL with SQLite fallback
+# Database Configuration: Multi-Engine Support (PostgreSQL, MySQL, SQLite)
+DB_ENGINE = os.environ.get("DB_ENGINE", "").lower()
 DB_NAME = os.environ.get("DB_NAME")
-if DB_NAME:
+
+if DB_ENGINE in ("postgres", "postgresql") or (not DB_ENGINE and DB_NAME and not DB_NAME.endswith(".sqlite3")):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": DB_NAME,
+            "NAME": DB_NAME or "messenger_automation",
             "USER": os.environ.get("DB_USER", "postgres"),
             "PASSWORD": os.environ.get("DB_PASSWORD", ""),
             "HOST": os.environ.get("DB_HOST", "localhost"),
             "PORT": os.environ.get("DB_PORT", "5432"),
         }
     }
+elif DB_ENGINE == "mysql":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": DB_NAME or "messenger_automation",
+            "USER": os.environ.get("DB_USER", "root"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", ""),
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": os.environ.get("DB_PORT", "3306"),
+            "OPTIONS": {
+                "charset": "utf8mb4",
+            },
+        }
+    }
 else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": BASE_DIR / (DB_NAME or "db.sqlite3"),
         }
     }
 
