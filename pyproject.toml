@@ -8,6 +8,16 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "camoufox[geoip]>=0.5.9",
+    "celery[redis]>=5.4",
+    "channels>=4.2",
+    "channels-redis>=4.2",
+    "daphne>=4.1",
+    "django>=5.1",
+    "pillow>=10.4",
+    "psycopg[binary]>=3.2",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-django>=4.9",
 ]
 
 [project.scripts]
