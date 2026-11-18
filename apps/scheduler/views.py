@@ -1,5 +1,5 @@
 import calendar
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
@@ -10,6 +10,13 @@ from apps.messenger.models import RecipientThread
 from apps.scheduler.models import ScheduledMessage, DeliveryLog
 from apps.scheduler.services import calculate_next_run
 from apps.scheduler.tasks import dispatch_scheduled_message
+
+def _safe_int(raw_val, default: int) -> int:
+    try:
+        return int(raw_val)
+    except (TypeError, ValueError):
+        return default
+
 
 @login_required
 def schedules_list_view(request):
@@ -23,16 +30,22 @@ def schedules_list_view(request):
         threads = RecipientThread.objects.filter(owner=user).select_related("account")
         accounts = MessengerAccount.objects.filter(owner=user, status=MessengerAccount.Status.ACTIVE)
 
-    today_bangkok = timezone.now().astimezone(ZoneInfo("Asia/Bangkok")).date()
+    bangkok_tz = ZoneInfo("Asia/Bangkok")
+    now_bangkok = timezone.now().astimezone(bangkok_tz)
+    default_bangkok = now_bangkok + timedelta(minutes=5)
+    form_draft = request.session.pop("schedule_form_draft", None) or {}
     months = [(i, calendar.month_name[i]) for i in range(1, 13)]
 
     return render(request, "scheduler/schedules.html", {
         "schedules": schedules,
         "threads": threads,
         "accounts": accounts,
-        "today_str": today_bangkok.strftime("%Y-%m-%d"),
-        "today_month": today_bangkok.month,
-        "today_day": today_bangkok.day,
+        "today_str": now_bangkok.strftime("%Y-%m-%d"),
+        "default_date_str": form_draft.get("run_date") or default_bangkok.strftime("%Y-%m-%d"),
+        "default_time_str": form_draft.get("run_time") or default_bangkok.strftime("%H:%M"),
+        "today_month": _safe_int(form_draft.get("annual_month"), now_bangkok.month),
+        "today_day": _safe_int(form_draft.get("annual_day") or form_draft.get("day_of_month"), now_bangkok.day),
+        "form_draft": form_draft,
         "months": months,
     })
 
@@ -51,13 +64,25 @@ def schedule_create_view(request):
         raw_annual_month = request.POST.get("annual_month")
         raw_annual_day = request.POST.get("annual_day")
 
-        if schedule_type not in ScheduledMessage.ScheduleType.values:
-            messages.error(request, "Select a valid schedule frequency.")
+        def _reject_with_draft(error_msg: str):
+            request.session["schedule_form_draft"] = {
+                "recipient_id": recipient_id or "",
+                "schedule_type": schedule_type or ScheduledMessage.ScheduleType.ONCE,
+                "run_date": raw_date or "",
+                "run_time": raw_time or "",
+                "day_of_month": raw_day_of_month or "",
+                "annual_month": raw_annual_month or "",
+                "annual_day": raw_annual_day or "",
+                "message_template": template,
+            }
+            messages.error(request, error_msg)
             return redirect("/schedules/")
 
+        if schedule_type not in ScheduledMessage.ScheduleType.values:
+            return _reject_with_draft("Select a valid schedule frequency.")
+
         if not recipient_id or not template:
-            messages.error(request, "Recipient and Message body are required.")
-            return redirect("/schedules/")
+            return _reject_with_draft("Recipient and Message body are required.")
 
         try:
             if user.is_superuser:
@@ -65,8 +90,7 @@ def schedule_create_view(request):
             else:
                 recipient = RecipientThread.objects.get(id=recipient_id, owner=user)
         except RecipientThread.DoesNotExist:
-            messages.error(request, "Selected Recipient Thread not found.")
-            return redirect("/schedules/")
+            return _reject_with_draft("Selected Recipient Thread not found.")
 
         # If account_id provided use it, otherwise inherit recipient's account
         account = recipient.account
@@ -92,25 +116,32 @@ def schedule_create_view(request):
 
         if schedule_type == ScheduledMessage.ScheduleType.ONCE:
             if not raw_date:
-                messages.error(request, "Select a valid target date for a one-off schedule.")
-                return redirect("/schedules/")
+                return _reject_with_draft("Select a valid target date for a one-off schedule.")
             try:
                 parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
             except ValueError:
-                messages.error(request, "Select a valid target date for a one-off schedule.")
-                return redirect("/schedules/")
+                return _reject_with_draft("Select a valid target date for a one-off schedule.")
+
+            bkk_tz = ZoneInfo("Asia/Bangkok")
+            now_bkk = timezone.now().astimezone(bkk_tz)
+            current_minute_bkk = now_bkk.replace(second=0, microsecond=0)
+
+            if parsed_date < now_bkk.date():
+                return _reject_with_draft("Target date for a one-off schedule cannot be earlier than today.")
+
+            scheduled_bkk = datetime.combine(parsed_date, parsed_time, tzinfo=bkk_tz)
+            if scheduled_bkk < current_minute_bkk:
+                return _reject_with_draft("Scheduled time for a one-off schedule cannot be earlier than the current time.")
 
         elif schedule_type == ScheduledMessage.ScheduleType.MONTHLY:
             if not raw_day_of_month:
-                messages.error(request, "Day of month must be between 1 and 31.")
-                return redirect("/schedules/")
+                return _reject_with_draft("Day of month must be between 1 and 31.")
             try:
                 parsed_day_of_month = int(raw_day_of_month)
             except ValueError:
                 parsed_day_of_month = 0
             if not (1 <= parsed_day_of_month <= 31):
-                messages.error(request, "Day of month must be between 1 and 31.")
-                return redirect("/schedules/")
+                return _reject_with_draft("Day of month must be between 1 and 31.")
 
         elif schedule_type == ScheduledMessage.ScheduleType.YEARLY:
             if raw_annual_month and raw_annual_day:
@@ -125,18 +156,15 @@ def schedule_create_view(request):
                     # Store in leap year 2000 so Feb 29 is valid and month/day can be reused cleanly
                     parsed_date = date(2000, month, day)
                 except ValueError:
-                    messages.error(request, "Select a valid month and day for an annual schedule.")
-                    return redirect("/schedules/")
+                    return _reject_with_draft("Select a valid month and day for an annual schedule.")
             elif raw_date:
                 try:
                     d = datetime.strptime(raw_date, "%Y-%m-%d").date()
                     parsed_date = date(2000, d.month, d.day)
                 except ValueError:
-                    messages.error(request, "Select a valid month and day for an annual schedule.")
-                    return redirect("/schedules/")
+                    return _reject_with_draft("Select a valid month and day for an annual schedule.")
             else:
-                messages.error(request, "Select a month and day for an annual schedule.")
-                return redirect("/schedules/")
+                return _reject_with_draft("Select a month and day for an annual schedule.")
 
         # Calculate next_run_at in UTC
         next_run_at = calculate_next_run(

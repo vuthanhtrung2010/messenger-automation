@@ -15,7 +15,7 @@
             <p class="mt-1 text-xs text-muted">Configure one-off or recurring dispatches in Asia/Bangkok (GMT+7).</p>
         </header>
 
-        <form method="post" action="/schedules/create/" class="space-y-4">
+        <form method="post" action="/schedules/create/" id="schedule-create-form" onsubmit="return handleScheduleSubmit(event)" class="space-y-4">
             {% csrf_token %}
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div class="flex flex-col gap-1.5">
@@ -27,7 +27,7 @@
                         class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
                     >
                         {% for thread in threads %}
-                        <option value="{{ thread.id }}">
+                        <option value="{{ thread.id }}" {% if form_draft.recipient_id == thread.id|stringformat:"s" %}selected{% endif %}>
                             {% if thread.recipient_name %}
                                 {{ thread.recipient_name }} (Thread: {{ thread.thread_id }})
                             {% else %}
@@ -49,10 +49,10 @@
                         onchange="toggleScheduleFields()"
                         class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
                     >
-                        <option value="ONCE">One-off event (specific date)</option>
-                        <option value="DAILY">Daily (every day)</option>
-                        <option value="MONTHLY">Monthly (day of month)</option>
-                        <option value="YEARLY">Yearly (annual event or birthday)</option>
+                        <option value="ONCE" {% if form_draft.schedule_type == 'ONCE' or not form_draft.schedule_type %}selected{% endif %}>One-off event (specific date)</option>
+                        <option value="DAILY" {% if form_draft.schedule_type == 'DAILY' %}selected{% endif %}>Daily (every day)</option>
+                        <option value="MONTHLY" {% if form_draft.schedule_type == 'MONTHLY' %}selected{% endif %}>Monthly (day of month)</option>
+                        <option value="YEARLY" {% if form_draft.schedule_type == 'YEARLY' %}selected{% endif %}>Yearly (annual event or birthday)</option>
                     </select>
                 </div>
             </div>
@@ -65,7 +65,10 @@
                         type="date"
                         id="run_date"
                         name="run_date"
-                        value="{{ today_str }}"
+                        min="{{ today_str }}"
+                        value="{{ default_date_str }}"
+                        onchange="handleDateOrTimeInput()"
+                        oninput="handleDateOrTimeInput()"
                         class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
                     >
                     <div class="scrollbar-clean overflow-x-auto py-0.5">
@@ -150,7 +153,9 @@
                         type="time"
                         id="run_time"
                         name="run_time"
-                        value="08:00"
+                        value="{{ default_time_str }}"
+                        onchange="handleDateOrTimeInput()"
+                        oninput="handleDateOrTimeInput()"
                         required
                         class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
                     >
@@ -160,13 +165,14 @@
                             <button type="button" onclick="shiftRunTime(5)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+5m</button>
                             <button type="button" onclick="shiftRunTime(15)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+15m</button>
                             <button type="button" onclick="shiftRunTime(60)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1h</button>
-                            <button type="button" onclick="setRunTime('00:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">00:00</button>
-                            <button type="button" onclick="setRunTime('08:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">08:00</button>
-                            <button type="button" onclick="setRunTime('20:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">20:00</button>
+                            <button type="button" data-fixed-time="00:00" onclick="setRunTime('00:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-foreground/5 disabled:hover:text-foreground/70">00:00</button>
+                            <button type="button" data-fixed-time="08:00" onclick="setRunTime('08:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-foreground/5 disabled:hover:text-foreground/70">08:00</button>
+                            <button type="button" data-fixed-time="20:00" onclick="setRunTime('20:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-foreground/5 disabled:hover:text-foreground/70">20:00</button>
                         </div>
                     </div>
                 </div>
             </div>
+            <p id="once-datetime-error" role="alert" class="hidden text-xs text-red-600"></p>
 
             <div class="flex flex-col gap-1.5">
                 <label for="message_template" class="w-fit cursor-pointer text-sm font-medium text-foreground">Message template</label>
@@ -177,7 +183,7 @@
                     placeholder="Happy Birthday {name}, wishing you a wonderful year ahead."
                     required
                     class="w-full rounded-xl border border-border-strong bg-surface px-3.5 py-2.5 text-base text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:text-sm"
-                ></textarea>
+                >{{ form_draft.message_template|default:'' }}</textarea>
                 <p class="text-xs text-muted">Use <code class="font-mono text-foreground">{name}</code> to insert the recipient's fetched name automatically.</p>
             </div>
 
@@ -325,10 +331,107 @@ function syncAnnualDayMax() {
     }
 }
 
+function setInputErrorState(inputEl, hasError) {
+    if (!inputEl) return;
+    if (hasError) {
+        inputEl.classList.remove('border-border-strong', 'focus:border-focus', 'focus:ring-focus');
+        inputEl.classList.add('border-red-500', 'focus:ring-red-500/10');
+        inputEl.setAttribute('aria-invalid', 'true');
+    } else {
+        inputEl.classList.remove('border-red-500', 'focus:ring-red-500/10');
+        inputEl.classList.add('border-border-strong', 'focus:border-focus', 'focus:ring-focus');
+        inputEl.removeAttribute('aria-invalid');
+    }
+}
+
+function getBangkokNowStrings() {
+    const now = getBangkokParts(new Date());
+    return {
+        now,
+        todayIso: `${now.year}-${pad2(now.month)}-${pad2(now.day)}`,
+        nowHHMM: `${pad2(now.hour)}:${pad2(now.minute)}`,
+    };
+}
+
+function syncOnceConstraints() {
+    const type = document.getElementById('schedule_type').value;
+    const runDateInput = document.getElementById('run_date');
+    const { todayIso, nowHHMM } = getBangkokNowStrings();
+
+    runDateInput.min = type === 'ONCE' ? todayIso : '';
+
+    const fixedButtons = document.querySelectorAll('[data-fixed-time]');
+    for (const btn of fixedButtons) {
+        const isPastFixedTime =
+            type === 'ONCE' &&
+            runDateInput.value === todayIso &&
+            btn.dataset.fixedTime < nowHHMM;
+        btn.disabled = isPastFixedTime;
+        if (isPastFixedTime) {
+            btn.title = 'Time has already passed today';
+        } else {
+            btn.removeAttribute('title');
+        }
+    }
+}
+
+function validateOnceSchedule({ showError = true } = {}) {
+    const type = document.getElementById('schedule_type').value;
+    const runDateInput = document.getElementById('run_date');
+    const runTimeInput = document.getElementById('run_time');
+    const errEl = document.getElementById('once-datetime-error');
+
+    if (type !== 'ONCE') {
+        setInputErrorState(runDateInput, false);
+        setInputErrorState(runTimeInput, false);
+        if (errEl) {
+            errEl.textContent = '';
+            errEl.classList.add('hidden');
+        }
+        return true;
+    }
+
+    const { todayIso, nowHHMM } = getBangkokNowStrings();
+
+    if (!runDateInput.value || runDateInput.value < todayIso) {
+        if (showError) {
+            setInputErrorState(runDateInput, true);
+            setInputErrorState(runTimeInput, false);
+            if (errEl) {
+                errEl.textContent = 'Target date cannot be earlier than today.';
+                errEl.classList.remove('hidden');
+            }
+        }
+        return false;
+    }
+
+    if (runDateInput.value === todayIso && runTimeInput.value && runTimeInput.value < nowHHMM) {
+        if (showError) {
+            setInputErrorState(runDateInput, false);
+            setInputErrorState(runTimeInput, true);
+            if (errEl) {
+                errEl.textContent = 'Scheduled time cannot be earlier than the current time in GMT+7.';
+                errEl.classList.remove('hidden');
+            }
+        }
+        return false;
+    }
+
+    setInputErrorState(runDateInput, false);
+    setInputErrorState(runTimeInput, false);
+    if (errEl) {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+    }
+    return true;
+}
+
 function setScheduleNow() {
     const type = document.getElementById('schedule_type').value;
     const nowParts = getBangkokParts(new Date());
-    const offsetMinutes = type === 'ONCE' ? 0 : (nowParts.second >= 45 ? 2 : 1);
+    const offsetMinutes = type === 'ONCE'
+        ? (nowParts.second >= 45 ? 1 : 0)
+        : (nowParts.second >= 45 ? 2 : 1);
     const target = getBangkokParts(new Date(Date.now() + offsetMinutes * 60 * 1000));
 
     document.getElementById('run_date').value = `${target.year}-${pad2(target.month)}-${pad2(target.day)}`;
@@ -337,15 +440,31 @@ function setScheduleNow() {
     document.getElementById('annual_day').value = String(target.day);
     document.getElementById('day_of_month').value = String(target.day);
     document.getElementById('run_time').value = `${pad2(target.hour)}:${pad2(target.minute)}`;
+
+    syncOnceConstraints();
+    validateOnceSchedule({ showError: false });
 }
 
 function setDateToday() {
-    const today = getBangkokParts(new Date());
-    document.getElementById('run_date').value = `${today.year}-${pad2(today.month)}-${pad2(today.day)}`;
-    document.getElementById('annual_month').value = String(today.month);
+    const type = document.getElementById('schedule_type').value;
+    const { now, todayIso, nowHHMM } = getBangkokNowStrings();
+    const runDateInput = document.getElementById('run_date');
+    const runTimeInput = document.getElementById('run_time');
+
+    runDateInput.value = todayIso;
+    document.getElementById('annual_month').value = String(now.month);
     syncAnnualDayMax();
-    document.getElementById('annual_day').value = String(today.day);
-    document.getElementById('day_of_month').value = String(today.day);
+    document.getElementById('annual_day').value = String(now.day);
+    document.getElementById('day_of_month').value = String(now.day);
+
+    if (type === 'ONCE' && runTimeInput.value && runTimeInput.value < nowHHMM) {
+        const future = getBangkokParts(new Date(Date.now() + 5 * 60 * 1000));
+        runDateInput.value = `${future.year}-${pad2(future.month)}-${pad2(future.day)}`;
+        runTimeInput.value = `${pad2(future.hour)}:${pad2(future.minute)}`;
+    }
+
+    syncOnceConstraints();
+    validateOnceSchedule({ showError: false });
 }
 
 function shiftTargetDate({ days = 0, months = 0 }) {
@@ -376,13 +495,14 @@ function shiftTargetDate({ days = 0, months = 0 }) {
     }
 
     const dateEl = document.getElementById('run_date');
-    const today = getBangkokParts(new Date());
+    const { now: today, todayIso } = getBangkokNowStrings();
     let year = today.year;
     let month = today.month;
     let day = today.day;
 
     if (dateEl.value && /^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) {
-        const [y, m, d] = dateEl.value.split('-').map(Number);
+        const baseStr = (type === 'ONCE' && dateEl.value < todayIso) ? todayIso : dateEl.value;
+        const [y, m, d] = baseStr.split('-').map(Number);
         year = y;
         month = m;
         day = d;
@@ -402,6 +522,8 @@ function shiftTargetDate({ days = 0, months = 0 }) {
     }
 
     dateEl.value = `${year}-${pad2(month)}-${pad2(day)}`;
+    syncOnceConstraints();
+    validateOnceSchedule({ showError: false });
 }
 
 function setAnnualPreset(month, day) {
@@ -435,10 +557,35 @@ function shiftRunTime(addMinutes) {
             shiftTargetDate({ days: dayDelta });
         }
     }
+    syncOnceConstraints();
+    validateOnceSchedule({ showError: true });
 }
 
 function setRunTime(hhmm) {
     document.getElementById('run_time').value = hhmm;
+    syncOnceConstraints();
+    validateOnceSchedule({ showError: true });
+}
+
+function handleDateOrTimeInput() {
+    syncOnceConstraints();
+    validateOnceSchedule({ showError: true });
+}
+
+function handleScheduleSubmit(event) {
+    syncOnceConstraints();
+    if (!validateOnceSchedule({ showError: true })) {
+        event.preventDefault();
+        const runDateInput = document.getElementById('run_date');
+        const runTimeInput = document.getElementById('run_time');
+        if (runDateInput.getAttribute('aria-invalid') === 'true') {
+            runDateInput.focus();
+        } else {
+            runTimeInput.focus();
+        }
+        return false;
+    }
+    return true;
 }
 
 function setBoxVisible(el, visible) {
@@ -483,6 +630,10 @@ function toggleScheduleFields() {
 
     if (isYearly) {
         syncAnnualDayMax();
+    }
+    syncOnceConstraints();
+    if (!isOnce) {
+        validateOnceSchedule({ showError: false });
     }
 }
 
