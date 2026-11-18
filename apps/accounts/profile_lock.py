@@ -44,8 +44,9 @@ def terminate_lingering_profile_browsers(profile_dir: str) -> None:
                 raw = f.read()
             if not raw:
                 continue
+            exe_arg = raw.split(b"\x00", 1)[0].decode("utf-8", errors="ignore")
             cmdline = raw.decode("utf-8", errors="ignore").replace("\x00", " ")
-            if abs_dir in cmdline and ("camoufox" in cmdline or "firefox" in cmdline):
+            if abs_dir in cmdline and ("camoufox" in exe_arg or "firefox" in exe_arg):
                 matching_pids.append(pid)
         except OSError:
             continue

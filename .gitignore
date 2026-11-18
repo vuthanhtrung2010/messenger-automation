@@ -12,5 +12,6 @@ data/done_login.flag
 data/test_screenshots/
 data/profiles/
 data/error_screenshots/
+data/locks/
 celerybeat-schedule*
 .env

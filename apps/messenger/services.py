@@ -115,6 +115,32 @@ def fetch_thread_recipient_name(profile_dir: str, thread_id: str, timeout: int =
     return None
 
 
+def insert_messenger_lexical_text(page, textbox, message: str) -> None:
+    """
+    Clears any stale draft in Messenger's Lexical contenteditable textbox and inserts
+    `message` exactly once via `document.execCommand('insertText')`.
+
+    Avoids `page.keyboard.insert_text()` / `locator.fill()`, which in Firefox Juggler
+    emit a duplicate `insertCompositionText` input event after `compositionend` that
+    causes Meta's Lexical editor to double the inserted text (e.g. 'ok' -> 'okok').
+    """
+    clean_message = message.replace("\r\n", "\n")
+
+    # Clear any leftover unsent draft in the persistent profile
+    page.keyboard.press("Control+a")
+    page.keyboard.press("Backspace")
+    time.sleep(0.15)
+
+    textbox.evaluate(
+        "(el, txt) => { el.focus(); document.execCommand('insertText', false, txt); }",
+        clean_message,
+    )
+    time.sleep(0.35)
+
+    if clean_message.strip() and not textbox.inner_text().strip():
+        raise RuntimeError("Failed to insert message text into Messenger input box")
+
+
 def send_thread_message(
     profile_dir: str,
     thread_id: str,
@@ -167,14 +193,22 @@ def send_thread_message(
                         time.sleep(0.5)
                         textbox.click(timeout=5000)
 
-                    time.sleep(0.3)
-
-                    page.keyboard.insert_text(message)
-                    time.sleep(0.4)
+                    time.sleep(0.25)
+                    insert_messenger_lexical_text(page, textbox, message)
 
                     page.keyboard.press("Enter")
 
-                    time.sleep(3.0)
+                    # Wait for Lexical textbox to clear after Enter (confirming send), then let E2EE flush
+                    send_deadline = time.time() + 4.0
+                    while time.time() < send_deadline:
+                        try:
+                            if not textbox.inner_text().strip():
+                                break
+                        except Exception:
+                            break
+                        time.sleep(0.25)
+
+                    time.sleep(1.5)
                     return True, None, None
                 except Exception as e:
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
