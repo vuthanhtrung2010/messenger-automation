@@ -1,106 +1,133 @@
 {% extends 'base.html' %}
 
-{% block title %}Recipients & Threads - Messenger Automation{% endblock %}
+{% block title %}Recipients - Messenger Auto{% endblock %}
+
+{% block header_title %}
+<h1 class="truncate text-base font-semibold text-foreground">Recipients</h1>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="text-2xl font-bold text-white">Recipients & Threads</h1>
-            <p class="text-xs text-slate-400 mt-1">Add Facebook Messenger thread IDs or URLs to automatically fetch recipient names and target them in schedules.</p>
-        </div>
-    </div>
+<div class="space-y-4">
+    <!-- Add Recipient Form Card -->
+    <section class="rounded-2xl border border-border bg-surface p-5">
+        <header class="mb-4">
+            <h2 class="text-base font-semibold text-foreground">Add recipient thread</h2>
+            <p class="mt-1 text-xs text-muted">Enter a Facebook Messenger thread ID or conversation URL. The worker will extract the participant name automatically.</p>
+        </header>
 
-    <!-- Add Thread Form Card -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-        <h2 class="text-sm font-semibold text-white mb-3">Add New Thread / Recipient</h2>
-        <form method="post" action="/threads/" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <form method="post" action="/threads/" class="grid grid-cols-1 gap-4 md:grid-cols-3">
             {% csrf_token %}
-            <div>
-                <label for="account_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Send Via Account</label>
-                <select id="account_id" name="account_id" required class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+            <div class="flex flex-col gap-1.5">
+                <label for="account_id" class="w-fit cursor-pointer text-sm font-medium text-foreground">Send via account</label>
+                <select
+                    id="account_id"
+                    name="account_id"
+                    required
+                    class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                >
                     {% for acc in accounts %}
                     <option value="{{ acc.id }}">{{ acc.name }} ({{ acc.fb_user_id|default:"Active" }})</option>
                     {% empty %}
-                    <option value="" disabled selected>No active accounts available (Connect an account first)</option>
+                    <option value="" disabled selected>No active accounts available</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <div class="md:col-span-2 flex space-x-3 items-end">
-                <div class="flex-1">
-                    <label for="thread_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Thread ID or Full URL</label>
-                    <input type="text" id="thread_id" name="thread_id" placeholder="e.g. 902973772639579 or https://www.facebook.com/messages/t/902973772639579" required class="w-full px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500">
+            <div class="flex flex-col gap-1.5 md:col-span-2">
+                <label for="thread_id" class="w-fit cursor-pointer text-sm font-medium text-foreground">Thread ID or URL</label>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                    <input
+                        type="text"
+                        id="thread_id"
+                        name="thread_id"
+                        placeholder="902973772639579 or https://www.facebook.com/messages/t/902973772639579"
+                        required
+                        class="h-11 min-w-0 flex-1 rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
+                    <button
+                        type="submit"
+                        class="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground outline-hidden transition-colors hover:bg-primary-hover md:min-h-10"
+                    >
+                        Add and fetch name
+                    </button>
                 </div>
-                <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-all shadow-lg shadow-blue-600/20 whitespace-nowrap">
-                    Add & Fetch Name
-                </button>
             </div>
         </form>
-    </div>
+    </section>
 
-    <!-- Threads Table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
-            <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider">
-                <tr>
-                    <th class="py-3 px-4">Recipient / Chat Name</th>
-                    <th class="py-3 px-4">Thread ID</th>
-                    <th class="py-3 px-4">Account</th>
-                    <th class="py-3 px-4">Name Status</th>
-                    <th class="py-3 px-4">Last Refreshed</th>
-                    <th class="py-3 px-4 text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800 text-slate-200">
-                {% for t in threads %}
-                <tr class="hover:bg-slate-800/40 transition-colors">
-                    <td class="py-3 px-4 font-semibold text-white">
-                        {{ t.recipient_name|default:"(Fetching name...)" }}
-                    </td>
-                    <td class="py-3 px-4 font-mono text-xs text-blue-400">
-                        <a href="https://www.facebook.com/messages/t/{{ t.thread_id }}" target="_blank" class="hover:underline">
-                            {{ t.thread_id }} &nearr;
-                        </a>
-                    </td>
-                    <td class="py-3 px-4 text-xs text-slate-400">{{ t.account.name }}</td>
-                    <td class="py-3 px-4">
-                        {% if t.name_status == 'FETCHED' %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
-                            Fetched
-                        </span>
-                        {% elif t.name_status == 'PENDING' %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-950 text-amber-400 border border-amber-800 animate-pulse">
-                            Pending
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-red-950 text-red-400 border border-red-800">
-                            Failed
-                        </span>
-                        {% endif %}
-                    </td>
-                    <td class="py-3 px-4 text-xs text-slate-400">{{ t.last_fetched_at|date:"d M Y, H:i"|default:"Never" }}</td>
-                    <td class="py-3 px-4 text-right space-x-2">
-                        <a href="/threads/{{ t.id }}/refresh/" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-blue-400 border border-slate-700">
-                            Refresh Name
-                        </a>
-                        <form method="post" action="/threads/{{ t.id }}/delete/" class="inline" onsubmit="return confirm('Delete this recipient thread?');">
-                            {% csrf_token %}
-                            <button type="submit" class="px-2 py-1 rounded text-xs text-red-400 hover:bg-red-900/30">
-                                Delete
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="py-8 text-center text-xs text-slate-500">
-                        No recipient threads added yet. Enter a Facebook Messenger thread ID above to begin!
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- Recipients Table -->
+    <div class="overflow-hidden rounded-2xl border border-border bg-surface">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-border text-left text-sm">
+                <thead>
+                    <tr class="bg-surface text-xs font-medium text-muted">
+                        <th scope="col" class="px-4 py-3">Recipient</th>
+                        <th scope="col" class="px-4 py-3">Thread ID</th>
+                        <th scope="col" class="px-4 py-3">Account</th>
+                        <th scope="col" class="px-4 py-3">Status</th>
+                        <th scope="col" class="px-4 py-3">Last refreshed</th>
+                        <th scope="col" class="w-px whitespace-nowrap px-4 py-3 text-right"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                    {% for t in threads %}
+                    <tr class="transition-colors hover:bg-surface-hover">
+                        <td class="px-4 py-3.5 font-medium text-foreground">
+                            {% if t.recipient_name %}{{ t.recipient_name }}{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 font-mono text-xs tabular-nums text-foreground">
+                            <a href="https://www.facebook.com/messages/t/{{ t.thread_id }}" target="_blank" rel="noopener noreferrer" class="underline-offset-4 outline-hidden hover:underline">
+                                {{ t.thread_id }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3.5 text-sm text-muted">{{ t.account.name }}</td>
+                        <td class="px-4 py-3.5">
+                            {% if t.name_status == 'FETCHED' %}
+                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-black/5">
+                                <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Fetched
+                            </span>
+                            {% elif t.name_status == 'PENDING' %}
+                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-black/5">
+                                <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Pending
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-black/5">
+                                <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Failed
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-xs tabular-nums text-muted">
+                            {% if t.last_fetched_at %}
+                            <time datetime="{{ t.last_fetched_at|date:'c' }}">{{ t.last_fetched_at|date:"M j, Y, H:i" }}</time>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right">
+                            <div class="inline-flex items-center justify-end gap-1.5">
+                                <a href="/threads/{{ t.id }}/refresh/" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover">
+                                    Refresh name
+                                </a>
+                                <form method="post" action="/threads/{{ t.id }}/delete/" class="inline" onsubmit="return confirm('Delete recipient thread {{ t.display_name }}?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:border-transparent hover:bg-rose-500/10 hover:text-rose-700">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-5 py-10 text-center">
+                            <p class="text-sm font-medium text-foreground">No recipients added yet</p>
+                            <p class="mx-auto mt-1 max-w-[45ch] text-xs text-pretty text-muted">Paste a Messenger thread ID above to fetch the recipient's name and enable scheduling.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}

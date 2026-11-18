@@ -1,34 +1,110 @@
 {% extends 'base.html' %}
 
-{% block title %}Sign In - Messenger Automation{% endblock %}
+{% block title %}Sign in - Messenger Auto{% endblock %}
 
-{% block content %}
-<div class="min-h-[70vh] flex flex-col justify-center items-center">
-    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
-        <div class="text-center mb-6">
-            <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600/20 text-blue-400 mb-3 border border-blue-500/30">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.455 5.518 3.735 7.21V22l3.39-1.86c.928.257 1.91.396 2.875.396 5.523 0 10-4.145 10-9.258C22 6.145 17.523 2 12 2zm1.066 12.443l-2.583-2.755-5.044 2.755 5.547-5.888 2.651 2.755 4.976-2.755-5.547 5.888z"/></svg>
-            </div>
-            <h1 class="text-2xl font-bold text-white">Admin Sign In</h1>
-            <p class="text-xs text-slate-400 mt-1">Manage Facebook Messenger accounts and schedules</p>
+{% block auth_content %}
+<div class="mx-auto w-full max-w-md rounded-2xl bg-surface p-6 sm:p-8">
+    <div class="mb-6">
+        <div class="mb-4 flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+                <path d="M8 12h.01"/>
+                <path d="M12 12h.01"/>
+                <path d="M16 12h.01"/>
+            </svg>
+        </div>
+        <h1 class="text-xl font-semibold text-foreground">Sign in to Messenger Auto</h1>
+        <p class="mt-1 text-sm text-muted">Manage accounts, recipient threads, and scheduled dispatches.</p>
+    </div>
+
+    <form method="post" novalidate class="space-y-3">
+        {% csrf_token %}
+
+        <div class="flex flex-col gap-1.5">
+            <label for="username" class="w-fit cursor-pointer text-sm font-medium text-foreground">Username</label>
+            <input
+                type="text"
+                id="username"
+                name="username"
+                autocomplete="username"
+                value="{{ username|default:'' }}"
+                placeholder="Enter username"
+                required
+                {% if not error and not password_error %}autofocus{% endif %}
+                class="h-12 w-full rounded-xl border {% if username_error %}border-red-500 focus:ring-2 focus:ring-red-500/10{% else %}border-border-strong focus:border-focus focus:ring-2 focus:ring-focus{% endif %} bg-surface px-4 text-base text-foreground placeholder:text-muted outline-hidden transition-colors md:text-sm"
+            >
+            <p class="min-h-4 text-xs text-red-600">{% if username_error %}{{ username_error }}{% endif %}</p>
         </div>
 
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
-            <div>
-                <label for="username" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Username</label>
-                <input type="text" id="username" name="username" required autofocus class="w-full px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors">
+        <div class="flex flex-col gap-1.5">
+            <label for="password" class="w-fit cursor-pointer text-sm font-medium text-foreground">Password</label>
+            <div class="relative">
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    autocomplete="current-password"
+                    placeholder="Enter password"
+                    required
+                    {% if error or password_error %}autofocus{% endif %}
+                    class="h-12 w-full rounded-xl border {% if password_error %}border-red-500 focus:ring-2 focus:ring-red-500/10{% else %}border-border-strong focus:border-focus focus:ring-2 focus:ring-focus{% endif %} bg-surface pl-4 pr-11 text-base text-foreground placeholder:text-muted outline-hidden transition-colors md:text-sm"
+                >
+                <button
+                    type="button"
+                    id="toggle-password"
+                    aria-label="Show password"
+                    class="absolute inset-y-0 right-1 my-auto flex size-10 cursor-pointer items-center justify-center rounded-lg text-muted outline-hidden transition-colors hover:text-foreground"
+                >
+                    <svg id="icon-eye" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg id="icon-eye-off" class="hidden size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/>
+                        <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/>
+                        <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/>
+                        <path d="m2 2 20 20"/>
+                    </svg>
+                </button>
             </div>
+            <p class="min-h-4 text-xs text-red-600">{% if password_error %}{{ password_error }}{% endif %}</p>
+        </div>
 
-            <div>
-                <label for="password" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Password</label>
-                <input type="password" id="password" name="password" required class="w-full px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors">
-            </div>
+        {% if error %}
+        <div role="alert" class="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+            <svg class="size-4 shrink-0 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
 
-            <button type="submit" class="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-colors shadow-lg shadow-blue-600/30">
-                Sign In
-            </button>
-        </form>
-    </div>
+        <button
+            type="submit"
+            class="inline-flex min-h-12 w-full cursor-pointer items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground outline-hidden transition-colors hover:bg-primary-hover"
+        >
+            Sign in
+        </button>
+    </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.getElementById('toggle-password');
+    const pwdInput = document.getElementById('password');
+    const iconEye = document.getElementById('icon-eye');
+    const iconEyeOff = document.getElementById('icon-eye-off');
+    if (toggleBtn && pwdInput) {
+        toggleBtn.addEventListener('click', function() {
+            const isVisible = pwdInput.type === 'text';
+            pwdInput.type = isVisible ? 'password' : 'text';
+            toggleBtn.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+            iconEye.classList.toggle('hidden', !isVisible);
+            iconEyeOff.classList.toggle('hidden', isVisible);
+        });
+    }
+});
+</script>
 {% endblock %}

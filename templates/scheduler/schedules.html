@@ -1,158 +1,200 @@
 {% extends 'base.html' %}
 
-{% block title %}Message Schedules - Messenger Automation{% endblock %}
+{% block title %}Schedules - Messenger Auto{% endblock %}
+
+{% block header_title %}
+<h1 class="truncate text-base font-semibold text-foreground">Schedules</h1>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="text-2xl font-bold text-white">Scheduled Messages</h1>
-            <p class="text-xs text-slate-400 mt-1">Configure automated Facebook Messenger dispatches for special events, birthdays, or recurring reminders (GMT+7).</p>
-        </div>
-    </div>
+<div class="space-y-4">
+    <!-- Create Schedule Card -->
+    <section class="rounded-2xl border border-border bg-surface p-5">
+        <header class="mb-4">
+            <h2 class="text-base font-semibold text-foreground">Create scheduled message</h2>
+            <p class="mt-1 text-xs text-muted">Configure one-off or recurring dispatches in Asia/Bangkok (GMT+7).</p>
+        </header>
 
-    <!-- Create Schedule Form -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-        <h2 class="text-sm font-semibold text-white mb-3">Schedule a New Message</h2>
         <form method="post" action="/schedules/create/" class="space-y-4">
             {% csrf_token %}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Recipient Selection: Shows Recipient Name first! -->
-                <div>
-                    <label for="recipient_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                        Select Recipient (By Name)
-                    </label>
-                    <select id="recipient_id" name="recipient_id" required class="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div class="flex flex-col gap-1.5">
+                    <label for="recipient_id" class="w-fit cursor-pointer text-sm font-medium text-foreground">Recipient</label>
+                    <select
+                        id="recipient_id"
+                        name="recipient_id"
+                        required
+                        class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
                         {% for thread in threads %}
                         <option value="{{ thread.id }}">
                             {% if thread.recipient_name %}
                                 {{ thread.recipient_name }} (Thread: {{ thread.thread_id }})
                             {% else %}
-                                Thread: {{ thread.thread_id }} (Name pending fetch)
+                                Thread: {{ thread.thread_id }} (Name pending)
                             {% endif %}
                         </option>
                         {% empty %}
-                        <option value="" disabled selected>No recipients found. Please add a thread ID in "Recipients & Threads" first.</option>
+                        <option value="" disabled selected>No recipients added yet</option>
                         {% endfor %}
                     </select>
-                    <p class="text-[11px] text-slate-500 mt-1">Can't find a recipient? <a href="/threads/" class="text-blue-400 hover:underline">Add thread ID first &rarr;</a></p>
+                    <p class="text-xs text-muted">Missing a person? <a href="/threads/" class="font-medium text-foreground underline-offset-4 outline-hidden hover:underline">Add their thread ID first</a></p>
                 </div>
 
-                <!-- Recurrence Rule -->
-                <div>
-                    <label for="schedule_type" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Schedule Frequency</label>
-                    <select id="schedule_type" name="schedule_type" onchange="toggleScheduleFields()" class="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
-                        <option value="ONCE">One-off Event (Specific Calendar Date)</option>
-                        <option value="DAILY">Daily (Repeats every day)</option>
-                        <option value="MONTHLY">Monthly (Specific day of each month)</option>
-                        <option value="YEARLY">Yearly (Annual Event / Birthday)</option>
+                <div class="flex flex-col gap-1.5">
+                    <label for="schedule_type" class="w-fit cursor-pointer text-sm font-medium text-foreground">Frequency</label>
+                    <select
+                        id="schedule_type"
+                        name="schedule_type"
+                        onchange="toggleScheduleFields()"
+                        class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
+                        <option value="ONCE">One-off event (specific date)</option>
+                        <option value="DAILY">Daily (every day)</option>
+                        <option value="MONTHLY">Monthly (day of month)</option>
+                        <option value="YEARLY">Yearly (annual event or birthday)</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Dynamic Date / Time / Day Selectors -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div id="field-date">
-                    <label for="run_date" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Target Date</label>
-                    <input type="date" id="run_date" name="run_date" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div id="field-date" class="flex flex-col gap-1.5">
+                    <label for="run_date" class="w-fit cursor-pointer text-sm font-medium text-foreground">Target date</label>
+                    <input
+                        type="date"
+                        id="run_date"
+                        name="run_date"
+                        class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
                 </div>
 
-                <div>
-                    <label for="run_time" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Time (GMT+7 Asia/Bangkok)</label>
-                    <input type="time" id="run_time" name="run_time" value="08:00" required class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                <div class="flex flex-col gap-1.5">
+                    <label for="run_time" class="w-fit cursor-pointer text-sm font-medium text-foreground">Time (GMT+7)</label>
+                    <input
+                        type="time"
+                        id="run_time"
+                        name="run_time"
+                        value="08:00"
+                        required
+                        class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
                 </div>
 
-                <div id="field-day" class="hidden">
-                    <label for="day_of_month" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Day of Month (1-31)</label>
-                    <input type="number" id="day_of_month" name="day_of_month" min="1" max="31" placeholder="1" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-sm focus:outline-none focus:border-blue-500">
+                <div id="field-day" class="hidden flex-col gap-1.5">
+                    <label for="day_of_month" class="w-fit cursor-pointer text-sm font-medium text-foreground">Day of month (1 to 31)</label>
+                    <input
+                        type="number"
+                        id="day_of_month"
+                        name="day_of_month"
+                        min="1"
+                        max="31"
+                        placeholder="1"
+                        class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
                 </div>
             </div>
 
-            <!-- Message Template -->
-            <div>
-                <div class="flex justify-between items-center mb-1">
-                    <label for="message_template" class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Message Content</label>
-                    <span class="text-[11px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">Supports {name} placeholder</span>
-                </div>
-                <textarea id="message_template" name="message_template" rows="3" placeholder="e.g. Happy Birthday {name}! Wishing you joy, success and happiness on your special day!" required class="w-full px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500"></textarea>
+            <div class="flex flex-col gap-1.5">
+                <label for="message_template" class="w-fit cursor-pointer text-sm font-medium text-foreground">Message template</label>
+                <textarea
+                    id="message_template"
+                    name="message_template"
+                    rows="3"
+                    placeholder="Happy Birthday {name}, wishing you a wonderful year ahead."
+                    required
+                    class="w-full rounded-xl border border-border-strong bg-surface px-3.5 py-2.5 text-base text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:text-sm"
+                ></textarea>
+                <p class="text-xs text-muted">Use <code class="font-mono text-foreground">{name}</code> to insert the recipient's fetched name automatically.</p>
             </div>
 
-            <div class="flex justify-end">
-                <button type="submit" class="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-all shadow-lg shadow-blue-600/20">
-                    Create Schedule
+            <div class="flex justify-end border-t border-border pt-4">
+                <button
+                    type="submit"
+                    class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary px-5 py-2 text-sm font-medium text-primary-foreground outline-hidden transition-colors hover:bg-primary-hover md:min-h-10"
+                >
+                    Create schedule
                 </button>
             </div>
         </form>
-    </div>
+    </section>
 
     <!-- Schedules Table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
-            <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider">
-                <tr>
-                    <th class="py-3 px-4">Recipient Name</th>
-                    <th class="py-3 px-4">Message Template</th>
-                    <th class="py-3 px-4">Recurrence</th>
-                    <th class="py-3 px-4">Next Due (GMT+7)</th>
-                    <th class="py-3 px-4">Status</th>
-                    <th class="py-3 px-4 text-right">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-800 text-slate-200">
-                {% for s in schedules %}
-                <tr class="hover:bg-slate-800/40 transition-colors">
-                    <td class="py-3 px-4">
-                        <span class="font-semibold text-white block">{{ s.recipient.display_name }}</span>
-                        <span class="text-[11px] text-slate-400">Via {{ s.account.name }}</span>
-                    </td>
-                    <td class="py-3 px-4 max-w-xs truncate text-xs text-slate-300">
-                        {{ s.message_template }}
-                    </td>
-                    <td class="py-3 px-4 text-xs font-mono">
-                        {{ s.schedule_type }} @ {{ s.run_time|time:"H:i" }}
-                    </td>
-                    <td class="py-3 px-4 text-xs font-mono text-blue-400">
-                        {{ s.next_run_at|date:"d M Y, H:i"|default:"Completed" }}
-                    </td>
-                    <td class="py-3 px-4">
-                        {% if s.status == 'ACTIVE' %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
-                            Active
-                        </span>
-                        {% elif s.status == 'PAUSED' %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
-                            Paused
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-950 text-blue-400 border border-blue-800">
-                            Completed
-                        </span>
-                        {% endif %}
-                    </td>
-                    <td class="py-3 px-4 text-right space-x-2">
-                        <a href="/schedules/{{ s.id }}/test-send/" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-emerald-400 border border-slate-700" title="Send immediate test message">
-                            Send Now
-                        </a>
-                        <a href="/schedules/{{ s.id }}/toggle/" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-amber-400 border border-slate-700">
-                            {% if s.status == 'ACTIVE' %}Pause{% else %}Resume{% endif %}
-                        </a>
-                        <form method="post" action="/schedules/{{ s.id }}/delete/" class="inline" onsubmit="return confirm('Delete this scheduled message?');">
-                            {% csrf_token %}
-                            <button type="submit" class="px-2 py-1 rounded text-xs text-red-400 hover:bg-red-900/30">
-                                Delete
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="py-8 text-center text-xs text-slate-500">
-                        No schedules created yet. Fill out the form above to schedule your first automated message!
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="overflow-hidden rounded-2xl border border-border bg-surface">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-border text-left text-sm">
+                <thead>
+                    <tr class="bg-surface text-xs font-medium text-muted">
+                        <th scope="col" class="px-4 py-3">Recipient</th>
+                        <th scope="col" class="px-4 py-3">Message</th>
+                        <th scope="col" class="px-4 py-3">Frequency</th>
+                        <th scope="col" class="px-4 py-3">Next due (GMT+7)</th>
+                        <th scope="col" class="px-4 py-3">Status</th>
+                        <th scope="col" class="w-px whitespace-nowrap px-4 py-3 text-right"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                    {% for s in schedules %}
+                    <tr class="transition-colors hover:bg-surface-hover">
+                        <td class="px-4 py-3.5">
+                            <p class="font-medium text-foreground">{{ s.recipient.display_name }}</p>
+                            <p class="mt-0.5 text-xs text-muted">{{ s.account.name }}</p>
+                        </td>
+                        <td class="max-w-xs truncate px-4 py-3.5 text-sm text-foreground" title="{{ s.message_template }}">
+                            {{ s.message_template }}
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3.5 text-xs tabular-nums text-muted">
+                            {{ s.get_schedule_type_display }} · {{ s.run_time|time:"H:i" }}
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3.5 text-xs tabular-nums text-foreground">
+                            {% if s.next_run_at %}
+                            <time datetime="{{ s.next_run_at|date:'c' }}">{{ s.next_run_at|date:"M j, Y, H:i" }}</time>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            {% if s.status == 'ACTIVE' %}
+                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-black/5">
+                                <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Active
+                            </span>
+                            {% elif s.status == 'PAUSED' %}
+                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 ring-1 ring-inset ring-black/5">
+                                <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Paused
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-black/5">
+                                <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Completed
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right">
+                            <div class="inline-flex items-center justify-end gap-1.5">
+                                <a href="/schedules/{{ s.id }}/test-send/" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover">
+                                    Send now
+                                </a>
+                                <a href="/schedules/{{ s.id }}/toggle/" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover">
+                                    {% if s.status == 'ACTIVE' %}Pause{% else %}Resume{% endif %}
+                                </a>
+                                <form method="post" action="/schedules/{{ s.id }}/delete/" class="inline" onsubmit="return confirm('Delete this scheduled message?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:border-transparent hover:bg-rose-500/10 hover:text-rose-700">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="px-5 py-10 text-center">
+                            <p class="text-sm font-medium text-foreground">No scheduled messages</p>
+                            <p class="mx-auto mt-1 max-w-[45ch] text-xs text-pretty text-muted">Use the form above to schedule a one-off or recurring Messenger message.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -164,13 +206,19 @@ function toggleScheduleFields() {
 
     if (type === 'ONCE' || type === 'YEARLY') {
         dateField.classList.remove('hidden');
+        dateField.classList.add('flex');
         dayField.classList.add('hidden');
+        dayField.classList.remove('flex');
     } else if (type === 'MONTHLY') {
         dateField.classList.add('hidden');
+        dateField.classList.remove('flex');
         dayField.classList.remove('hidden');
+        dayField.classList.add('flex');
     } else {
         dateField.classList.add('hidden');
+        dateField.classList.remove('flex');
         dayField.classList.add('hidden');
+        dayField.classList.remove('flex');
     }
 }
 document.addEventListener('DOMContentLoaded', toggleScheduleFields);

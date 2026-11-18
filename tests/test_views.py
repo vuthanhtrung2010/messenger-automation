@@ -5,6 +5,22 @@ from apps.accounts.models import MessengerAccount
 from apps.messenger.models import RecipientThread
 
 @pytest.mark.django_db
+def test_login_invalid_credentials_shows_error_and_preserves_username():
+    User.objects.create_user(username="validadmin", password="correctpassword")
+    client = Client()
+
+    res = client.post("/login/", {
+        "username": "validadmin",
+        "password": "wrongpassword",
+    })
+    assert res.status_code == 200
+    html = res.content.decode()
+    assert 'role="alert"' in html
+    assert "Username or password is incorrect" in html
+    assert 'value="validadmin"' in html
+
+
+@pytest.mark.django_db
 def test_dashboard_and_schedule_views_authenticated():
     user = User.objects.create_user(username="u1", password="pw")
     client = Client()

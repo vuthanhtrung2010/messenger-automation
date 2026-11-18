@@ -1,88 +1,264 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Messenger Automation{% endblock %}</title>
+    <title>{% block title %}Messenger Auto{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/tokens.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
                     colors: {
-                        brand: {
-                            50: '#eff6ff',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                        }
+                        primary: {
+                            DEFAULT: 'var(--primary)',
+                            hover: 'var(--primary-hover)',
+                            foreground: 'var(--primary-foreground)',
+                            light: 'var(--primary-light)',
+                        },
+                        background: {
+                            DEFAULT: 'var(--background)',
+                            hover: 'var(--background-hover)',
+                        },
+                        surface: {
+                            DEFAULT: 'var(--surface)',
+                            hover: 'var(--surface-hover)',
+                            overlay: 'var(--surface-overlay)',
+                        },
+                        'item-hover': 'var(--item-hover)',
+                        foreground: 'var(--foreground)',
+                        muted: 'var(--muted)',
+                        border: {
+                            DEFAULT: 'var(--border)',
+                            strong: 'var(--border-strong)',
+                            focus: 'var(--border-focus)',
+                        },
+                        'tab-rail': 'var(--tab-rail)',
+                        'chart-fill': 'var(--chart-fill)',
+                        secondary: {
+                            DEFAULT: 'var(--secondary)',
+                            hover: 'var(--secondary-hover)',
+                        },
+                        'button-hover': 'var(--button-hover)',
+                        'tab-selected': 'var(--tab-selected)',
+                    },
+                    borderColor: {
+                        DEFAULT: 'var(--border)',
+                        border: 'var(--border)',
+                        'border-strong': 'var(--border-strong)',
+                        focus: 'var(--border-focus)',
+                    },
+                    ringColor: {
+                        focus: 'var(--ring-focus)',
+                    },
+                    boxShadow: {
+                        card: 'var(--elevation-card)',
+                        popover: 'var(--elevation-popover)',
+                        modal: 'var(--elevation-modal)',
                     }
                 }
             }
         }
     </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-    </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full flex flex-col bg-slate-950 text-slate-100">
-    <!-- Navbar -->
-    <header class="bg-slate-900 border-b border-slate-800">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between h-16 items-center">
-            <div class="flex items-center space-x-6">
-                <a href="/" class="flex items-center space-x-3 text-white font-bold text-lg">
-                    <span class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.145 2 11.258c0 2.91 1.455 5.518 3.735 7.21V22l3.39-1.86c.928.257 1.91.396 2.875.396 5.523 0 10-4.145 10-9.258C22 6.145 17.523 2 12 2zm1.066 12.443l-2.583-2.755-5.044 2.755 5.547-5.888 2.651 2.755 4.976-2.755-5.547 5.888z"/></svg>
+<body class="h-full bg-background text-sm text-foreground antialiased">
+    {% if user.is_authenticated %}
+    <div class="flex min-h-full">
+        <!-- Mobile Sidebar Backdrop -->
+        <div id="mobile-sidebar-backdrop" onclick="closeMobileSidebar()" class="fixed inset-0 z-40 hidden bg-black/15 transition-opacity lg:hidden" aria-hidden="true"></div>
+
+        <!-- Sidebar -->
+        <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 -translate-x-full flex-col bg-surface transition-transform duration-300 ease-out lg:static lg:translate-x-0">
+            <!-- Brand Header -->
+            <div class="flex h-16 shrink-0 items-center gap-2.5 border-b border-border px-4">
+                <a href="/" class="flex items-center gap-2.5 outline-hidden">
+                    <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+                            <path d="M8 12h.01"/>
+                            <path d="M12 12h.01"/>
+                            <path d="M16 12h.01"/>
+                        </svg>
                     </span>
-                    <span>FB Messenger Auto</span>
+                    <span class="text-sm font-semibold text-foreground">Messenger Auto</span>
                 </a>
-                {% if user.is_authenticated %}
-                <nav class="hidden md:flex space-x-1">
-                    <a href="/" class="px-3 py-2 rounded-md text-sm font-medium {% if request.path == '/' %}bg-slate-800 text-white{% else %}text-slate-400 hover:text-white hover:bg-slate-800/60{% endif %}">Dashboard</a>
-                    <a href="/accounts/" class="px-3 py-2 rounded-md text-sm font-medium {% if '/accounts/' in request.path %}bg-slate-800 text-white{% else %}text-slate-400 hover:text-white hover:bg-slate-800/60{% endif %}">Accounts</a>
-                    <a href="/threads/" class="px-3 py-2 rounded-md text-sm font-medium {% if '/threads/' in request.path %}bg-slate-800 text-white{% else %}text-slate-400 hover:text-white hover:bg-slate-800/60{% endif %}">Recipients & Threads</a>
-                    <a href="/schedules/" class="px-3 py-2 rounded-md text-sm font-medium {% if '/schedules/' in request.path %}bg-slate-800 text-white{% else %}text-slate-400 hover:text-white hover:bg-slate-800/60{% endif %}">Schedules</a>
-                    <a href="/logs/" class="px-3 py-2 rounded-md text-sm font-medium {% if '/logs/' in request.path %}bg-slate-800 text-white{% else %}text-slate-400 hover:text-white hover:bg-slate-800/60{% endif %}">Delivery Logs</a>
-                </nav>
-                {% endif %}
+                <button type="button" onclick="closeMobileSidebar()" class="sr-only">Close navigation</button>
             </div>
-            {% if user.is_authenticated %}
-            <div class="flex items-center space-x-4">
-                <span class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                    {{ user.username }} {% if user.is_superuser %}(Superuser){% endif %}
-                </span>
-                <form method="post" action="/logout/" class="inline">
+
+            <!-- Navigation -->
+            <nav class="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3" aria-label="Main navigation">
+                <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %} class="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 text-sm outline-hidden transition-colors {% if request.path == '/' %}bg-secondary font-medium text-foreground{% else %}text-foreground/70 hover:bg-item-hover hover:text-foreground{% endif %}">
+                    <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect width="7" height="9" x="3" y="3" rx="1"/>
+                        <rect width="7" height="5" x="14" y="3" rx="1"/>
+                        <rect width="7" height="9" x="14" y="12" rx="1"/>
+                        <rect width="7" height="5" x="3" y="16" rx="1"/>
+                    </svg>
+                    <span class="truncate">Overview</span>
+                </a>
+
+                <a href="/accounts/" {% if '/accounts/' in request.path %}aria-current="page"{% endif %} class="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 text-sm outline-hidden transition-colors {% if '/accounts/' in request.path %}bg-secondary font-medium text-foreground{% else %}text-foreground/70 hover:bg-item-hover hover:text-foreground{% endif %}">
+                    <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span class="truncate">Accounts</span>
+                </a>
+
+                <a href="/threads/" {% if '/threads/' in request.path %}aria-current="page"{% endif %} class="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 text-sm outline-hidden transition-colors {% if '/threads/' in request.path %}bg-secondary font-medium text-foreground{% else %}text-foreground/70 hover:bg-item-hover hover:text-foreground{% endif %}">
+                    <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span class="truncate">Recipients</span>
+                </a>
+
+                <a href="/schedules/" {% if '/schedules/' in request.path %}aria-current="page"{% endif %} class="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 text-sm outline-hidden transition-colors {% if '/schedules/' in request.path %}bg-secondary font-medium text-foreground{% else %}text-foreground/70 hover:bg-item-hover hover:text-foreground{% endif %}">
+                    <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span class="truncate">Schedules</span>
+                </a>
+
+                <a href="/logs/" {% if '/logs/' in request.path %}aria-current="page"{% endif %} class="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 text-sm outline-hidden transition-colors {% if '/logs/' in request.path %}bg-secondary font-medium text-foreground{% else %}text-foreground/70 hover:bg-item-hover hover:text-foreground{% endif %}">
+                    <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" x2="8" y1="13" y2="13"/>
+                        <line x1="16" x2="8" y1="17" y2="17"/>
+                    </svg>
+                    <span class="truncate">Delivery logs</span>
+                </a>
+            </nav>
+
+            <!-- Sidebar Footer -->
+            <div class="border-t border-border px-3 py-3">
+                <div class="flex items-center gap-2.5 px-1 py-1.5">
+                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-semibold text-emerald-700" aria-hidden="true">
+                        {{ user.username|slice:":2"|upper }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-medium text-foreground">{{ user.username }}</p>
+                        <p class="truncate text-xs text-muted">{% if user.is_superuser %}Superuser{% else %}Admin{% endif %} · GMT+7</p>
+                    </div>
+                </div>
+                <form method="post" action="/logout/" class="mt-1">
                     {% csrf_token %}
-                    <button type="submit" class="text-xs text-slate-400 hover:text-red-400 transition-colors">Logout</button>
+                    <button type="submit" class="group flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 text-left text-sm text-foreground/70 outline-hidden transition-colors hover:bg-rose-500/10 hover:text-rose-700">
+                        <svg class="size-4 shrink-0 text-muted transition-colors group-hover:text-rose-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" x2="9" y1="12" y2="12"/>
+                        </svg>
+                        <span>Sign out</span>
+                    </button>
                 </form>
             </div>
-            {% endif %}
-        </div>
-    </header>
+        </aside>
 
-    <!-- Messages -->
-    {% if messages %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 w-full">
-        {% for message in messages %}
-        <div class="p-3 mb-2 rounded-lg text-sm {% if message.tags == 'error' %}bg-red-900/60 border border-red-700 text-red-200{% elif message.tags == 'success' %}bg-emerald-900/60 border border-emerald-700 text-emerald-200{% else %}bg-blue-900/60 border border-blue-700 text-blue-200{% endif %}">
-            {{ message }}
+        <!-- Main Content Column -->
+        <div class="flex min-w-0 flex-1 flex-col">
+            <!-- Top Bar -->
+            <header class="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 sm:px-6">
+                <div class="flex min-w-0 items-center gap-3">
+                    <button type="button" onclick="openMobileSidebar()" aria-label="Open navigation" class="inline-flex size-10 cursor-pointer items-center justify-center rounded-xl text-muted outline-hidden hover:bg-foreground/5 hover:text-foreground lg:hidden">
+                        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="4" x2="20" y1="12" y2="12"/>
+                            <line x1="4" x2="20" y1="6" y2="6"/>
+                            <line x1="4" x2="20" y1="18" y2="18"/>
+                        </svg>
+                    </button>
+                    <div class="min-w-0">
+                        {% block header_title %}
+                        <h1 class="truncate text-base font-semibold text-foreground">Overview</h1>
+                        {% endblock %}
+                    </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                    {% block header_actions %}{% endblock %}
+                </div>
+            </header>
+
+            <!-- Page Body -->
+            <main class="flex-1 p-4 sm:p-6">
+                {% if messages %}
+                <div class="mb-4 space-y-2">
+                    {% for message in messages %}
+                    <div role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}" class="flex items-center gap-3 rounded-2xl border p-4 {% if message.tags == 'error' %}border-red-200 bg-red-50{% elif message.tags == 'warning' %}border-amber-200 bg-amber-50{% else %}border-border bg-surface{% endif %}">
+                        {% if message.tags == 'error' %}
+                        <svg class="size-5 shrink-0 text-red-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+                        </svg>
+                        <p class="min-w-0 flex-1 text-sm font-medium text-red-700">{{ message }}</p>
+                        {% elif message.tags == 'warning' %}
+                        <svg class="size-5 shrink-0 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
+                        </svg>
+                        <p class="min-w-0 flex-1 text-sm font-medium text-amber-800">{{ message }}</p>
+                        {% else %}
+                        <svg class="size-5 shrink-0 text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                        <p class="min-w-0 flex-1 text-sm font-medium text-foreground">{{ message }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% block content %}{% endblock %}
+            </main>
         </div>
-        {% endfor %}
     </div>
+    {% else %}
+    <!-- Unauthenticated Shell -->
+    <main class="flex min-h-full flex-col justify-center p-4 sm:p-6">
+        {% block auth_content %}{% endblock %}
+    </main>
     {% endif %}
 
-    <!-- Main Content -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="bg-slate-900/50 border-t border-slate-800/60 py-4 text-center text-xs text-slate-500">
-        Messenger Automation System &copy; 2026 &bull; Asia/Bangkok (GMT+7)
-    </footer>
-
+    <script>
+        function openMobileSidebar() {
+            const sidebar = document.getElementById('app-sidebar');
+            const backdrop = document.getElementById('mobile-sidebar-backdrop');
+            if (sidebar && backdrop) {
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+            }
+        }
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('app-sidebar');
+            const backdrop = document.getElementById('mobile-sidebar-backdrop');
+            if (sidebar && backdrop) {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('hidden');
+            }
+        }
+        // Scrollbar autohide (Rule I18)
+        (function() {
+            const hideTimers = new WeakMap();
+            window.addEventListener('scroll', function(event) {
+                const el = event.target instanceof Element ? event.target : document.scrollingElement;
+                if (!el) return;
+                el.classList.add('is-scrolling');
+                clearTimeout(hideTimers.get(el));
+                hideTimers.set(el, setTimeout(function() {
+                    el.classList.remove('is-scrolling');
+                }, 700));
+            }, { capture: true, passive: true });
+        })();
+    </script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

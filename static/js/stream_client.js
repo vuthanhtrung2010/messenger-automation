@@ -6,10 +6,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('stream-canvas');
     const ctx = canvas.getContext('2d');
     const loadingOverlay = document.getElementById('loading-overlay');
-    const statusDot = document.getElementById('status-dot');
+    const statusBadge = document.getElementById('status-badge');
     const statusText = document.getElementById('status-text');
     const btnPaste = document.getElementById('btn-paste');
     const btnDone = document.getElementById('btn-done');
+
+    function setBadgeStatus(state, label) {
+        if (statusText) statusText.textContent = label;
+        if (!statusBadge) return;
+        const base = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ring-black/5';
+        if (state === 'active') {
+            statusBadge.className = `${base} bg-emerald-50 text-emerald-700`;
+        } else if (state === 'error') {
+            statusBadge.className = `${base} bg-red-50 text-red-700`;
+        } else if (state === 'closed') {
+            statusBadge.className = `${base} bg-zinc-100 text-zinc-600`;
+        } else {
+            statusBadge.className = `${base} bg-amber-50 text-amber-700`;
+        }
+    }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/accounts/${accountId}/stream/`;
@@ -19,18 +34,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let firstFrameReceived = false;
 
     socket.onopen = () => {
-        statusText.textContent = 'Live Streaming';
-        statusDot.className = 'w-3 h-3 rounded-full bg-emerald-500 animate-pulse';
+        setBadgeStatus('active', 'Live stream');
     };
 
     socket.onclose = () => {
-        statusText.textContent = 'Disconnected';
-        statusDot.className = 'w-3 h-3 rounded-full bg-slate-500';
+        setBadgeStatus('closed', 'Disconnected');
     };
 
-    socket.onerror = (err) => {
-        statusText.textContent = 'Connection Error';
-        statusDot.className = 'w-3 h-3 rounded-full bg-red-500';
+    socket.onerror = () => {
+        setBadgeStatus('error', 'Connection error');
     };
 
     socket.onmessage = async (event) => {
@@ -38,19 +50,17 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'login_success') {
-                    statusText.textContent = `Logged in (FB ID: ${msg.fb_user_id || 'Active'})`;
-                    statusDot.className = 'w-3 h-3 rounded-full bg-emerald-400';
+                    setBadgeStatus('active', `Authenticated (${msg.fb_user_id || 'Active'})`);
                     setTimeout(() => {
                         window.location.href = '/accounts/';
-                    }, 1500);
+                    }, 1200);
                 } else if (msg.type === 'error') {
-                    alert(`Streaming error: ${msg.message}`);
+                    setBadgeStatus('error', 'Session error');
                 }
             } catch (e) {
                 console.error('Error parsing JSON message:', e);
             }
         } else {
-            // Binary JPEG frame
             const blob = new Blob([event.data], { type: 'image/jpeg' });
             try {
                 const bitmap = await createImageBitmap(blob);
@@ -74,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Coordinate conversion
     function getCanvasCoordinates(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
@@ -85,7 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Pointer events
     canvas.addEventListener('mousedown', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
         const { x, y } = getCanvasCoordinates(e);
@@ -109,16 +117,14 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousemove', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
         const now = Date.now();
-        if (now - lastMoveTime < 40) return; // 25 fps throttle on move
+        if (now - lastMoveTime < 40) return;
         lastMoveTime = now;
         const { x, y } = getCanvasCoordinates(e);
         socket.send(JSON.stringify({ type: 'mouse', action: 'move', x, y }));
     });
 
-    // Keyboard events
     canvas.addEventListener('keydown', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
-        // Allow paste event to fire for Ctrl+V
         if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
             return;
         }
@@ -136,7 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.send(JSON.stringify({ type: 'keyboard', action: 'up', key: e.key }));
     });
 
-    // Native Ctrl+V / Clipboard Paste Event Listener
     window.addEventListener('paste', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
         const text = (e.clipboardData || window.clipboardData)?.getData('text');
@@ -145,7 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Quick-Paste Button Action
     if (btnPaste) {
         btnPaste.addEventListener('click', async () => {
             if (socket.readyState !== WebSocket.OPEN) return;
@@ -155,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     socket.send(JSON.stringify({ type: 'paste', text: text }));
                 }
             } catch (err) {
-                const text = prompt('Paste your text / password here:');
+                const text = prompt('Paste text to insert into the browser:');
                 if (text) {
                     socket.send(JSON.stringify({ type: 'paste', text: text }));
                 }
@@ -163,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Done Button Action
     if (btnDone) {
         btnDone.addEventListener('click', () => {
             if (socket.readyState !== WebSocket.OPEN) return;

@@ -1,63 +1,60 @@
 {% extends 'base.html' %}
 
-{% block title %}Delivery Logs - Messenger Automation{% endblock %}
+{% block title %}Delivery logs - Messenger Auto{% endblock %}
+
+{% block header_title %}
+<h1 class="truncate text-base font-semibold text-foreground">Delivery logs</h1>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="text-2xl font-bold text-white">Delivery Logs & History</h1>
-            <p class="text-xs text-slate-400 mt-1">Audit trail of all message dispatches, statuses, and error traces.</p>
-        </div>
-    </div>
-
-    <!-- Logs Table -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-        <table class="min-w-full divide-y divide-slate-800 text-left text-sm">
-            <thead class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider">
-                <tr>
-                    <th class="py-3 px-4">Attempted At (GMT+7)</th>
-                    <th class="py-3 px-4">Recipient</th>
-                    <th class="py-3 px-4">Rendered Content</th>
-                    <th class="py-3 px-4">Status</th>
-                    <th class="py-3 px-4">Error / Details</th>
+<div class="overflow-hidden rounded-2xl border border-border bg-surface">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-border text-left text-sm">
+            <thead>
+                <tr class="bg-surface text-xs font-medium text-muted">
+                    <th scope="col" class="px-4 py-3">Attempted at (GMT+7)</th>
+                    <th scope="col" class="px-4 py-3">Recipient</th>
+                    <th scope="col" class="px-4 py-3">Rendered message</th>
+                    <th scope="col" class="px-4 py-3">Status</th>
+                    <th scope="col" class="px-4 py-3">Details</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-800 text-slate-200">
+            <tbody class="divide-y divide-border">
                 {% for log in logs %}
-                <tr class="hover:bg-slate-800/40 transition-colors">
-                    <td class="py-3 px-4 text-xs font-mono text-slate-400">
-                        {{ log.attempted_at|date:"d M Y, H:i:s" }}
+                <tr class="transition-colors hover:bg-surface-hover">
+                    <td class="whitespace-nowrap px-4 py-3.5 text-xs tabular-nums text-muted">
+                        <time datetime="{{ log.attempted_at|date:'c' }}">{{ log.attempted_at|date:"M j, Y, H:i:s" }}</time>
                     </td>
-                    <td class="py-3 px-4 font-semibold text-white">
-                        {{ log.recipient_thread.display_name }}
+                    <td class="px-4 py-3.5 font-medium text-foreground">
+                        {% if log.recipient_thread %}{{ log.recipient_thread.display_name }}{% else %}<span class="text-muted">—</span>{% endif %}
                     </td>
-                    <td class="py-3 px-4 text-xs text-slate-300 max-w-sm truncate">
+                    <td class="max-w-sm truncate px-4 py-3.5 text-sm text-foreground" title="{{ log.rendered_content }}">
                         {{ log.rendered_content }}
                     </td>
-                    <td class="py-3 px-4">
+                    <td class="px-4 py-3.5">
                         {% if log.status == 'SUCCESS' %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-950 text-emerald-400 border border-emerald-800">
-                            Success
+                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-black/5">
+                            <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Delivered
                         </span>
                         {% else %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-red-950 text-red-400 border border-red-800">
-                            Failed
+                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-black/5">
+                            <span class="size-1.5 rounded-full bg-current" aria-hidden="true"></span>Failed
                         </span>
                         {% endif %}
                     </td>
-                    <td class="py-3 px-4 text-xs text-slate-400">
+                    <td class="px-4 py-3.5 text-xs">
                         {% if log.error_message %}
-                        <span class="text-red-400 block truncate max-w-xs" title="{{ log.error_message }}">{{ log.error_message }}</span>
+                        <span class="block max-w-xs truncate text-red-600" title="{{ log.error_message }}">{{ log.error_message }}</span>
                         {% else %}
-                        <span class="text-slate-500">Delivered without error</span>
+                        <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="py-8 text-center text-xs text-slate-500">
-                        No delivery logs recorded yet.
+                    <td colspan="5" class="px-5 py-10 text-center">
+                        <p class="text-sm font-medium text-foreground">No delivery logs recorded</p>
+                        <p class="mx-auto mt-1 max-w-[45ch] text-xs text-pretty text-muted">Completed or failed message dispatches will appear here with timestamps and status details.</p>
                     </td>
                 </tr>
                 {% endfor %}

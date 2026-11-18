@@ -1,23 +1,40 @@
 {% extends 'base.html' %}
 
-{% block title %}Connect New Account - Messenger Automation{% endblock %}
+{% block title %}Connect account - Messenger Auto{% endblock %}
+
+{% block header_title %}
+<nav aria-label="Breadcrumb">
+    <a href="/accounts/" class="text-sm font-medium text-muted outline-hidden transition-colors hover:text-foreground">Accounts</a>
+</nav>
+{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-    <h1 class="text-xl font-bold text-white mb-2">Connect Facebook Account</h1>
-    <p class="text-xs text-slate-400 mb-6">Enter a recognizable name for this account. You will then be redirected to an interactive browser stream to log into Facebook.</p>
+<div class="max-w-lg rounded-2xl border border-border bg-surface p-5 sm:p-6">
+    <h1 class="text-xl font-semibold text-foreground">Connect Facebook account</h1>
+    <p class="mt-2 text-sm/6 text-pretty text-muted">Assign a label to identify this account. Next, an interactive Camoufox session will open so you can sign in and persist your browser profile.</p>
 
-    <form method="post" action="/accounts/add/" class="space-y-4">
+    <form method="post" action="/accounts/add/" class="mt-5">
         {% csrf_token %}
-        <div>
-            <label for="name" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Account Label</label>
-            <input type="text" id="name" name="name" placeholder="e.g. Personal Facebook, Support Bot" required autofocus class="w-full px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors">
+        <div class="flex flex-col gap-1.5">
+            <label for="name" class="w-fit cursor-pointer text-sm font-medium text-foreground">Account label</label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="Personal Messenger"
+                required
+                autofocus
+                class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+            >
+            <p class="min-h-4 text-xs text-muted">Used to select which profile dispatches your scheduled messages.</p>
         </div>
 
-        <div class="pt-2 flex justify-end space-x-3">
-            <a href="/accounts/" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">Cancel</a>
-            <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20">
-                Continue to Stream &rarr;
+        <div class="mt-6 flex items-center justify-end gap-2 border-t border-border pt-5">
+            <a href="/accounts/" class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover md:min-h-10">
+                Cancel
+            </a>
+            <button type="submit" class="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground outline-hidden transition-colors hover:bg-primary-hover md:min-h-10">
+                Continue to stream
             </button>
         </div>
     </form>

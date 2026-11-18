@@ -110,7 +110,7 @@ def schedule_create_view(request):
             next_run_at=next_run_at,
         )
 
-        messages.success(request, f"Scheduled message created for {recipient.display_name}!")
+        messages.success(request, f"Scheduled message created for {recipient.display_name}.")
         return redirect("/schedules/")
 
     return redirect("/schedules/")
