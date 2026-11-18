@@ -28,6 +28,8 @@ def _cleanup_stale_profile_locks(profile_dir: str):
 async def launch_browser_session(profile_dir: str):
     """
     Launches an async Camoufox browser context with persistent profile.
+    Uses humanize=False for interactive streaming because a real human is driving
+    the cursor and keyboard directly (humanize=True adds ~470ms delay per mouse move).
     """
     from camoufox.async_api import AsyncCamoufox
 
@@ -38,7 +40,7 @@ async def launch_browser_session(profile_dir: str):
         headless=True,
         persistent_context=True,
         user_data_dir=profile_dir,
-        humanize=True,
+        humanize=False,
         i_know_what_im_doing=True,
         viewport={"width": 1280, "height": 800},
     )
@@ -82,8 +84,10 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
         self.is_running = False
         self.force_frame = False
         self.logged_in_notified = False
-        self.last_interaction_time = 0
+        self.last_interaction_time = 0.0
+        self.last_cookie_check_time = 0.0
         self.browser_ready = asyncio.Event()
+        self._move_in_flight = False
 
     async def connect(self):
         self.account_id = str(self.scope["url_route"]["kwargs"]["account_id"])
@@ -118,6 +122,7 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                     "message": "Starting browser"
                 }))
                 self.browser, self.page = await launch_browser_session(self.account.profile_dir)
+                self.last_interaction_time = asyncio.get_event_loop().time()
                 self.browser_ready.set()
                 await self.send(text_data=json.dumps({
                     "type": "status",
@@ -138,18 +143,26 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
             try:
                 while self.is_running:
                     try:
-                        frame = await self.page.screenshot(type="jpeg", quality=60)
+                        # Fast CSS-scaled JPEG capture (~22ms/frame -> up to 44 FPS)
+                        frame = await self.page.screenshot(
+                            type="jpeg",
+                            quality=55,
+                            scale="css",
+                            animations="disabled",
+                        )
                         frame_hash = hashlib.md5(frame).hexdigest()
 
                         now = asyncio.get_event_loop().time()
-                        is_active = (now - self.last_interaction_time) < 2.0
+                        is_active = (now - self.last_interaction_time) < 3.0
 
                         if frame_hash != last_hash or self.force_frame:
                             self.force_frame = False
                             last_hash = frame_hash
                             await self.send(bytes_data=frame)
 
-                        if not self.logged_in_notified:
+                        # Check cookies at most once every 2.0 seconds
+                        if not self.logged_in_notified and (now - self.last_cookie_check_time) >= 2.0:
+                            self.last_cookie_check_time = now
                             cookies = await self.browser.cookies()
                             fb_cookies = {
                                 c["name"]: c["value"]
@@ -169,13 +182,13 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                                 }))
 
                         if is_active:
-                            await asyncio.sleep(0.06)
+                            await asyncio.sleep(0.03)  # ~25-30 FPS target during active interaction
                         else:
-                            await asyncio.sleep(0.4)
+                            await asyncio.sleep(0.25)  # 4 FPS when idle
                     except asyncio.CancelledError:
                         break
                     except Exception:
-                        await asyncio.sleep(0.8)
+                        await asyncio.sleep(0.3)
             finally:
                 await close_browser_session(self.browser)
                 self.browser = None
@@ -216,13 +229,26 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                 btn = data.get("button", "left")
 
                 if action == "move":
-                    await self.page.mouse.move(x, y)
+                    # Drop redundant mouse move if a previous move is still in flight
+                    if self._move_in_flight:
+                        return
+                    self._move_in_flight = True
+                    try:
+                        await self.page.mouse.move(x, y)
+                    finally:
+                        self._move_in_flight = False
                 elif action == "down":
+                    await self.page.mouse.move(x, y)
                     await self.page.mouse.down(button=btn)
                 elif action == "up":
+                    await self.page.mouse.move(x, y)
                     await self.page.mouse.up(button=btn)
                 elif action == "click":
                     await self.page.mouse.click(x, y, button=btn)
+                elif action == "wheel":
+                    dx = data.get("deltaX", 0)
+                    dy = data.get("deltaY", 0)
+                    await self.page.mouse.wheel(dx, dy)
 
             elif msg_type == "keyboard":
                 action = data.get("action")

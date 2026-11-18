@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!accountId) return;
 
     const canvas = document.getElementById('stream-canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     const loadingOverlay = document.getElementById('loading-overlay');
     const statusBadge = document.getElementById('status-badge');
     const statusText = document.getElementById('status-text');
@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.binaryType = 'arraybuffer';
 
     let firstFrameReceived = false;
+    let isDrawing = false;
 
     socket.onopen = () => {
         setBadgeStatus('starting', 'Starting browser');
@@ -63,6 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error parsing JSON message:', e);
             }
         } else {
+            if (isDrawing) return;
+            isDrawing = true;
             const blob = new Blob([event.data], { type: 'image/jpeg' });
             try {
                 const bitmap = await createImageBitmap(blob);
@@ -77,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = new Image();
                 img.onload = () => {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    URL.revokeObjectURL(img.src);
                     if (!firstFrameReceived) {
                         firstFrameReceived = true;
                         setBadgeStatus('active', 'Live stream');
@@ -84,6 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
                 img.src = URL.createObjectURL(blob);
+            } finally {
+                isDrawing = false;
             }
         }
     };
@@ -98,18 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    canvas.addEventListener('mousedown', (e) => {
-        if (socket.readyState !== WebSocket.OPEN) return;
-        const { x, y } = getCanvasCoordinates(e);
-        socket.send(JSON.stringify({ type: 'mouse', action: 'down', x, y, button: e.button === 2 ? 'right' : 'left' }));
-    });
-
-    canvas.addEventListener('mouseup', (e) => {
-        if (socket.readyState !== WebSocket.OPEN) return;
-        const { x, y } = getCanvasCoordinates(e);
-        socket.send(JSON.stringify({ type: 'mouse', action: 'up', x, y, button: e.button === 2 ? 'right' : 'left' }));
-    });
-
     canvas.addEventListener('click', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
         const { x, y } = getCanvasCoordinates(e);
@@ -121,11 +115,22 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousemove', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
         const now = Date.now();
-        if (now - lastMoveTime < 40) return;
+        if (now - lastMoveTime < 80) return;
         lastMoveTime = now;
         const { x, y } = getCanvasCoordinates(e);
         socket.send(JSON.stringify({ type: 'mouse', action: 'move', x, y }));
     });
+
+    canvas.addEventListener('wheel', (e) => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        e.preventDefault();
+        socket.send(JSON.stringify({
+            type: 'mouse',
+            action: 'wheel',
+            deltaX: Math.round(e.deltaX),
+            deltaY: Math.round(e.deltaY),
+        }));
+    }, { passive: false });
 
     canvas.addEventListener('keydown', (e) => {
         if (socket.readyState !== WebSocket.OPEN) return;
