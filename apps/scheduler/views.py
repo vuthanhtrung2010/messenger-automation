@@ -147,7 +147,7 @@ def schedule_create_view(request):
             tz_name="Asia/Bangkok",
         )
 
-        ScheduledMessage.objects.create(
+        schedule = ScheduledMessage.objects.create(
             owner=user,
             account=account,
             recipient=recipient,
@@ -160,6 +160,13 @@ def schedule_create_view(request):
             status=ScheduledMessage.Status.ACTIVE,
             next_run_at=next_run_at,
         )
+
+        # Eagerly dispatch already-due schedules (e.g. "Now") with 0s pickup delay
+        if schedule.next_run_at and schedule.next_run_at <= timezone.now():
+            try:
+                dispatch_scheduled_message.delay(str(schedule.id), schedule.next_run_at.isoformat())
+            except Exception:
+                pass
 
         messages.success(request, f"Scheduled message created for {recipient.display_name}.")
         return redirect("/schedules/")

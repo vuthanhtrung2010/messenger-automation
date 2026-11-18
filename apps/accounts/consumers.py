@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from apps.accounts.models import MessengerAccount
 from apps.accounts.profile_lock import terminate_lingering_profile_browsers
+from apps.messenger.browser_pool import mark_profile_streaming
 
 _ACCOUNT_LOCKS: dict[str, asyncio.Lock] = {}
 
@@ -23,17 +24,23 @@ async def launch_browser_session(profile_dir: str):
     from camoufox.async_api import AsyncCamoufox
 
     os.makedirs(profile_dir, exist_ok=True)
-    await asyncio.to_thread(terminate_lingering_profile_browsers, profile_dir)
+    mark_profile_streaming(profile_dir, True)
+    try:
+        await asyncio.to_thread(terminate_lingering_profile_browsers, profile_dir)
 
-    camoufox = AsyncCamoufox(
-        headless=True,
-        persistent_context=True,
-        user_data_dir=profile_dir,
-        humanize=False,
-        i_know_what_im_doing=True,
-        viewport={"width": 1280, "height": 800},
-    )
-    browser = await camoufox.__aenter__()
+        camoufox = AsyncCamoufox(
+            headless=True,
+            persistent_context=True,
+            user_data_dir=profile_dir,
+            humanize=False,
+            i_know_what_im_doing=True,
+            viewport={"width": 1280, "height": 800},
+        )
+        browser = await camoufox.__aenter__()
+    except Exception:
+        mark_profile_streaming(profile_dir, False)
+        raise
+
     try:
         browser._camoufox_cm = camoufox
         browser._profile_dir = profile_dir
@@ -49,6 +56,7 @@ async def launch_browser_session(profile_dir: str):
 
 
 async def close_browser_session(browser, profile_dir: str | None = None):
+    pdir = profile_dir
     if browser is not None:
         cm = getattr(browser, "_camoufox_cm", None)
         pdir = profile_dir or getattr(browser, "_profile_dir", None)
@@ -63,8 +71,11 @@ async def close_browser_session(browser, profile_dir: str | None = None):
                 pass
         if pdir and not isinstance(pdir, asyncio.Future) and isinstance(pdir, str):
             await asyncio.to_thread(terminate_lingering_profile_browsers, pdir)
-    elif profile_dir:
+    elif profile_dir and isinstance(profile_dir, str):
         await asyncio.to_thread(terminate_lingering_profile_browsers, profile_dir)
+
+    if pdir and not isinstance(pdir, asyncio.Future) and isinstance(pdir, str):
+        mark_profile_streaming(pdir, False)
 
 
 class BrowserStreamConsumer(AsyncWebsocketConsumer):

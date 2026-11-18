@@ -94,6 +94,9 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / (DB_NAME or "db.sqlite3"),
+            "OPTIONS": {
+                "timeout": 20,
+            },
         }
     }
 
@@ -131,9 +134,9 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
 CELERY_BEAT_SCHEDULE = {
-    "check-due-messages-every-minute": {
+    "check-due-messages-every-5s": {
         "task": "apps.scheduler.tasks.check_and_dispatch_due_messages",
-        "schedule": 60.0,
+        "schedule": 5.0,
     },
 }
 

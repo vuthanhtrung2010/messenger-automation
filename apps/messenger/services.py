@@ -1,8 +1,4 @@
-import os
 import time
-from datetime import datetime
-from camoufox.sync_api import Camoufox
-from apps.accounts.profile_lock import acquire_profile_lock
 
 _NAME_PREFIXES = (
     "Write to ",
@@ -83,36 +79,12 @@ def dismiss_messenger_dialogs(page) -> bool:
 
 def fetch_thread_recipient_name(profile_dir: str, thread_id: str, timeout: int = 18) -> str | None:
     """
-    Opens Facebook Messenger thread in headless Camoufox and extracts the recipient/thread name.
-    Uses cross-process profile locking and cleans up any lingering browser locks first.
+    Fetches the recipient/thread name using the shared warm multi-tab AccountBrowserPool
+    so concurrent tasks reuse an already-running browser and open parallel tabs.
     """
-    url = f"https://www.facebook.com/messages/t/{thread_id}"
+    from apps.messenger.browser_pool import get_browser_pool
 
-    with acquire_profile_lock(profile_dir):
-        with Camoufox(
-            headless=True,
-            persistent_context=True,
-            user_data_dir=profile_dir,
-            humanize=False,
-            i_know_what_im_doing=True,
-        ) as browser:
-            page = browser.pages[0] if browser.pages else browser.new_page()
-            page.goto(url, wait_until="domcontentloaded", timeout=25000)
-
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                dismiss_messenger_dialogs(page)
-                elements = page.query_selector_all(
-                    'div[role="textbox"], [aria-label^="Conversation "], [aria-label^="Messages in conversation "]'
-                )
-                for el in elements:
-                    label = el.get_attribute("aria-label")
-                    name = extract_name_from_dom(label)
-                    if name:
-                        return name
-                time.sleep(0.8)
-
-    return None
+    return get_browser_pool().fetch_recipient_name(profile_dir, thread_id, timeout=float(timeout))
 
 
 def insert_messenger_lexical_text(page, textbox, message: str) -> None:
@@ -148,76 +120,10 @@ def send_thread_message(
     timeout: int = 25,
 ) -> tuple[bool, str | None, str | None]:
     """
-    Dispatches a message to a Facebook Messenger thread using persistent Camoufox context.
+    Dispatches a message to a Facebook Messenger thread via the shared warm multi-tab
+    AccountBrowserPool (one persistent browser per account, concurrent tabs across recipients).
     Returns (success: bool, error_message: str | None, screenshot_path: str | None)
     """
-    url = f"https://www.facebook.com/messages/t/{thread_id}"
-    screenshot_dir = os.path.abspath("data/error_screenshots")
-    os.makedirs(screenshot_dir, exist_ok=True)
+    from apps.messenger.browser_pool import get_browser_pool
 
-    try:
-        with acquire_profile_lock(profile_dir):
-            with Camoufox(
-                headless=True,
-                persistent_context=True,
-                user_data_dir=profile_dir,
-                humanize=False,
-                i_know_what_im_doing=True,
-            ) as browser:
-                page = browser.pages[0] if browser.pages else browser.new_page()
-                try:
-                    page.goto(url, wait_until="domcontentloaded", timeout=25000)
-                    # Allow Facebook's async E2EE module time to mount any PIN modal before checking readiness
-                    time.sleep(3.5)
-
-                    start_wait = time.time()
-                    ready = False
-                    while time.time() - start_wait < timeout:
-                        dismiss_messenger_dialogs(page)
-                        has_textbox = page.locator('div[role="textbox"]').count() > 0
-                        has_dialog = page.locator('[role="dialog"]').count() > 0
-                        if has_textbox and not has_dialog:
-                            ready = True
-                            break
-                        time.sleep(0.8)
-
-                    if not ready and page.locator('div[role="textbox"]').count() == 0:
-                        raise RuntimeError("Could not find message input box on page")
-
-                    textbox = page.locator('div[role="textbox"]').first
-                    try:
-                        textbox.click(timeout=5000)
-                    except Exception:
-                        # Retry once in case a late dialog appeared right as click() ran
-                        dismiss_messenger_dialogs(page)
-                        time.sleep(0.5)
-                        textbox.click(timeout=5000)
-
-                    time.sleep(0.25)
-                    insert_messenger_lexical_text(page, textbox, message)
-
-                    page.keyboard.press("Enter")
-
-                    # Wait for Lexical textbox to clear after Enter (confirming send), then let E2EE flush
-                    send_deadline = time.time() + 4.0
-                    while time.time() < send_deadline:
-                        try:
-                            if not textbox.inner_text().strip():
-                                break
-                        except Exception:
-                            break
-                        time.sleep(0.25)
-
-                    time.sleep(1.5)
-                    return True, None, None
-                except Exception as e:
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    screenshot_path = os.path.join(screenshot_dir, f"error_{thread_id}_{timestamp}.png")
-                    try:
-                        page.screenshot(path=screenshot_path)
-                    except Exception:
-                        screenshot_path = None
-                    return False, str(e), screenshot_path
-
-    except Exception as e:
-        return False, str(e), None
+    return get_browser_pool().send_message(profile_dir, thread_id, message, timeout=float(timeout))

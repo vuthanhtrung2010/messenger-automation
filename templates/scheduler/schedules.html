@@ -326,8 +326,9 @@ function syncAnnualDayMax() {
 }
 
 function setScheduleNow() {
+    const type = document.getElementById('schedule_type').value;
     const nowParts = getBangkokParts(new Date());
-    const offsetMinutes = nowParts.second >= 35 ? 2 : 1;
+    const offsetMinutes = type === 'ONCE' ? 0 : (nowParts.second >= 45 ? 2 : 1);
     const target = getBangkokParts(new Date(Date.now() + offsetMinutes * 60 * 1000));
 
     document.getElementById('run_date').value = `${target.year}-${pad2(target.month)}-${pad2(target.day)}`;

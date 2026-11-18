@@ -13,15 +13,17 @@ fi
 echo "2. Applying database migrations..."
 devenv shell -- uv run python manage.py migrate
 
-echo "3. Starting Celery Worker & Celery Beat in background..."
+echo "3. Starting Celery Worker (shared warm-browser threads) & Celery Beat in background..."
 pkill -f "celery -A config" 2>/dev/null || true
+pkill -f "camoufox.*$PWD/data/profiles" 2>/dev/null || true
+rm -f celerybeat-schedule*
 sleep 0.5
-devenv shell -- uv run celery -A config worker --loglevel=info &
+devenv shell -- uv run celery -A config worker --pool=threads --concurrency=6 --loglevel=info &
 CELERY_WORKER_PID=$!
 devenv shell -- uv run celery -A config beat --loglevel=info &
 CELERY_BEAT_PID=$!
 
-trap "echo 'Stopping background workers...'; kill $CELERY_WORKER_PID $CELERY_BEAT_PID 2>/dev/null || true; pkill -f 'celery -A config' 2>/dev/null || true; exit" SIGINT SIGTERM
+trap "echo 'Stopping background workers...'; kill $CELERY_WORKER_PID $CELERY_BEAT_PID 2>/dev/null || true; pkill -f 'celery -A config' 2>/dev/null || true; pkill -f \"camoufox.*$PWD/data/profiles\" 2>/dev/null || true; exit" SIGINT SIGTERM
 
 echo "4. Starting Django ASGI Web Server (Daphne with auto-reload) on http://127.0.0.1:8000..."
 devenv shell -- uv run python manage.py runserver 0.0.0.0:8000

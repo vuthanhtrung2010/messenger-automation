@@ -11,6 +11,8 @@ data/test_cookies.json
 data/done_login.flag
 data/test_screenshots/
 data/profiles/
+data/profiles/*.streaming
+data/profiles/*.ops.lock
 data/error_screenshots/
 data/locks/
 celerybeat-schedule*
