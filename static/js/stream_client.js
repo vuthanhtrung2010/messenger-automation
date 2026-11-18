@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let firstFrameReceived = false;
 
     socket.onopen = () => {
-        setBadgeStatus('active', 'Live stream');
+        setBadgeStatus('starting', 'Starting browser');
     };
 
     socket.onclose = () => {
@@ -49,13 +49,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof event.data === 'string') {
             try {
                 const msg = JSON.parse(event.data);
-                if (msg.type === 'login_success') {
+                if (msg.type === 'status') {
+                    setBadgeStatus(msg.state || 'active', msg.message || 'Live stream');
+                } else if (msg.type === 'login_success') {
                     setBadgeStatus('active', `Authenticated (${msg.fb_user_id || 'Active'})`);
                     setTimeout(() => {
                         window.location.href = '/accounts/';
                     }, 1200);
                 } else if (msg.type === 'error') {
-                    setBadgeStatus('error', 'Session error');
+                    setBadgeStatus('error', msg.message || 'Session error');
                 }
             } catch (e) {
                 console.error('Error parsing JSON message:', e);
@@ -68,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bitmap.close();
                 if (!firstFrameReceived) {
                     firstFrameReceived = true;
+                    setBadgeStatus('active', 'Live stream');
                     if (loadingOverlay) loadingOverlay.classList.add('hidden');
                 }
             } catch (err) {
@@ -76,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     if (!firstFrameReceived) {
                         firstFrameReceived = true;
+                        setBadgeStatus('active', 'Live stream');
                         if (loadingOverlay) loadingOverlay.classList.add('hidden');
                     }
                 };

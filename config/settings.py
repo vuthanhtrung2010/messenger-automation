@@ -116,20 +116,12 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Channels configuration
+# Use InMemoryChannelLayer to avoid redis-py 8.x BZPOPMIN socket timeout disconnecting active WebSockets
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer"
     }
 }
-
-REDIS_URL = os.environ.get("REDIS_URL")
-if REDIS_URL:
-    CHANNEL_LAYERS["default"] = {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [REDIS_URL],
-        },
-    }
 
 # Celery Configuration
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")

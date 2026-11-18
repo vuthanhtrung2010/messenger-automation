@@ -21,5 +21,5 @@ CELERY_BEAT_PID=$!
 
 trap "echo 'Stopping background workers...'; kill $CELERY_WORKER_PID $CELERY_BEAT_PID 2>/dev/null || true; exit" SIGINT SIGTERM
 
-echo "4. Starting Django ASGI Web Server (Daphne) on http://127.0.0.1:8000..."
-devenv shell -- uv run daphne -b 0.0.0.0 -p 8000 config.asgi:application
+echo "4. Starting Django ASGI Web Server (Daphne with auto-reload) on http://127.0.0.1:8000..."
+devenv shell -- uv run python manage.py runserver 0.0.0.0:8000
