@@ -32,22 +32,53 @@ def extract_name_from_dom(aria_label: str | None) -> str | None:
     return None
 
 
-def dismiss_messenger_dialogs(page) -> None:
+def dismiss_messenger_dialogs(page) -> bool:
     """
-    Dismisses Messenger modal dialogs such as 'Enter your PIN to restore your chats'.
+    Dismisses Messenger modal dialogs such as 'Enter your PIN to restore your chats'
+    and its secondary confirmation 'Continue without restoring?' -> 'Don't restore messages'.
+    Returns True if any dialog action was taken.
     """
+    acted = False
     try:
-        close_btns = page.query_selector_all(
-            'div[role="dialog"] [aria-label="Close"], div[role="dialog"] [aria-label="Đóng"]'
+        if page.locator('[role="dialog"]').count() == 0:
+            return False
+
+        # Step A: If confirmation dialog ("Continue without restoring?") is open, click "Don't restore messages"
+        dont_restore = page.locator(
+            '[role="dialog"] [role="button"][aria-label*="restore"], '
+            '[role="dialog"] [role="button"]:has-text("Don\'t restore"), '
+            '[role="dialog"] [role="button"]:has-text("Không khôi phục")'
         )
-        for btn in close_btns:
-            try:
-                btn.click(timeout=1500)
-                time.sleep(0.3)
-            except Exception:
-                pass
+        if dont_restore.count() > 0:
+            dont_restore.last.click(force=True, timeout=2000)
+            time.sleep(1.0)
+            acted = True
+
+        # Step B: If PIN restore dialog is open, click "Close" / "Đóng"
+        if page.locator('[role="dialog"]').count() > 0:
+            close_btn = page.locator(
+                '[role="dialog"] [role="button"][aria-label="Close"], '
+                '[role="dialog"] [role="button"][aria-label="Đóng"]'
+            )
+            if close_btn.count() > 0:
+                close_btn.first.click(force=True, timeout=2000)
+                time.sleep(1.0)
+                acted = True
+
+        # Step C: Clicking Close on PIN dialog opens "Continue without restoring?"; dismiss it immediately
+        if page.locator('[role="dialog"]').count() > 0:
+            dont_restore = page.locator(
+                '[role="dialog"] [role="button"][aria-label*="restore"], '
+                '[role="dialog"] [role="button"]:has-text("Don\'t restore"), '
+                '[role="dialog"] [role="button"]:has-text("Không khôi phục")'
+            )
+            if dont_restore.count() > 0:
+                dont_restore.last.click(force=True, timeout=2000)
+                time.sleep(1.0)
+                acted = True
     except Exception:
         pass
+    return acted
 
 
 def fetch_thread_recipient_name(profile_dir: str, thread_id: str, timeout: int = 18) -> str | None:
@@ -88,7 +119,7 @@ def send_thread_message(
     profile_dir: str,
     thread_id: str,
     message: str,
-    timeout: int = 20,
+    timeout: int = 25,
 ) -> tuple[bool, str | None, str | None]:
     """
     Dispatches a message to a Facebook Messenger thread using persistent Camoufox context.
@@ -104,43 +135,55 @@ def send_thread_message(
                 headless=True,
                 persistent_context=True,
                 user_data_dir=profile_dir,
-                humanize=True,
+                humanize=False,
                 i_know_what_im_doing=True,
             ) as browser:
                 page = browser.pages[0] if browser.pages else browser.new_page()
-                page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                try:
+                    page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                    # Allow Facebook's async E2EE module time to mount any PIN modal before checking readiness
+                    time.sleep(3.5)
 
-                start_wait = time.time()
-                textbox = None
-                while time.time() - start_wait < timeout:
-                    dismiss_messenger_dialogs(page)
-                    textbox = page.query_selector('div[role="textbox"]')
-                    if textbox:
-                        break
-                    time.sleep(0.8)
+                    start_wait = time.time()
+                    ready = False
+                    while time.time() - start_wait < timeout:
+                        dismiss_messenger_dialogs(page)
+                        has_textbox = page.locator('div[role="textbox"]').count() > 0
+                        has_dialog = page.locator('[role="dialog"]').count() > 0
+                        if has_textbox and not has_dialog:
+                            ready = True
+                            break
+                        time.sleep(0.8)
 
-                if not textbox:
-                    raise RuntimeError("Could not find message input box on page")
+                    if not ready and page.locator('div[role="textbox"]').count() == 0:
+                        raise RuntimeError("Could not find message input box on page")
 
-                textbox.click()
-                time.sleep(0.3)
+                    textbox = page.locator('div[role="textbox"]').first
+                    try:
+                        textbox.click(timeout=5000)
+                    except Exception:
+                        # Retry once in case a late dialog appeared right as click() ran
+                        dismiss_messenger_dialogs(page)
+                        time.sleep(0.5)
+                        textbox.click(timeout=5000)
 
-                page.keyboard.insert_text(message)
-                time.sleep(0.4)
+                    time.sleep(0.3)
 
-                page.keyboard.press("Enter")
+                    page.keyboard.insert_text(message)
+                    time.sleep(0.4)
 
-                time.sleep(3.0)
-                return True, None, None
+                    page.keyboard.press("Enter")
+
+                    time.sleep(3.0)
+                    return True, None, None
+                except Exception as e:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    screenshot_path = os.path.join(screenshot_dir, f"error_{thread_id}_{timestamp}.png")
+                    try:
+                        page.screenshot(path=screenshot_path)
+                    except Exception:
+                        screenshot_path = None
+                    return False, str(e), screenshot_path
 
     except Exception as e:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = os.path.join(screenshot_dir, f"error_{thread_id}_{timestamp}.png")
-        try:
-            if 'page' in locals() and page:
-                page.screenshot(path=screenshot_path)
-            else:
-                screenshot_path = None
-        except Exception:
-            screenshot_path = None
-        return False, str(e), screenshot_path
+        return False, str(e), None

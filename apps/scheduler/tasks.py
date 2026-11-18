@@ -43,7 +43,9 @@ def dispatch_scheduled_message(schedule_id: str):
     schedule.last_run_at = now
 
     if schedule.schedule_type == ScheduledMessage.ScheduleType.ONCE:
-        schedule.status = ScheduledMessage.Status.COMPLETED
+        schedule.status = (
+            ScheduledMessage.Status.COMPLETED if success else ScheduledMessage.Status.PAUSED
+        )
         schedule.next_run_at = None
     else:
         schedule.next_run_at = calculate_next_run(
