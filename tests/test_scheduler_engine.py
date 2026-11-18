@@ -78,3 +78,28 @@ def test_calculate_yearly_next_run():
     )
     expected_local = datetime.datetime(2026, 11, 20, 12, 0, tzinfo=tz)
     assert next_run == expected_local.astimezone(datetime.timezone.utc)
+
+
+def test_calculate_yearly_leap_day_feb_29():
+    tz = ZoneInfo("Asia/Bangkok")
+    # Non-leap next year (2027): clamps Feb 29 -> Feb 28
+    base_non_leap = datetime.datetime(2026, 11, 18, 8, 0, tzinfo=tz)
+    next_run_2027 = calculate_next_run(
+        schedule_type=ScheduledMessage.ScheduleType.YEARLY,
+        run_time=datetime.time(8, 0),
+        run_date=datetime.date(2000, 2, 29),
+        tz_name="Asia/Bangkok",
+        base_time=base_non_leap,
+    )
+    assert next_run_2027 == datetime.datetime(2027, 2, 28, 8, 0, tzinfo=tz).astimezone(datetime.timezone.utc)
+
+    # Leap year (2028): resolves directly to Feb 29
+    base_leap = datetime.datetime(2028, 1, 15, 8, 0, tzinfo=tz)
+    next_run_2028 = calculate_next_run(
+        schedule_type=ScheduledMessage.ScheduleType.YEARLY,
+        run_time=datetime.time(8, 0),
+        run_date=datetime.date(2000, 2, 29),
+        tz_name="Asia/Bangkok",
+        base_time=base_leap,
+    )
+    assert next_run_2028 == datetime.datetime(2028, 2, 29, 8, 0, tzinfo=tz).astimezone(datetime.timezone.utc)

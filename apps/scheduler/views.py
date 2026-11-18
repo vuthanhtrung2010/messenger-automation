@@ -1,4 +1,6 @@
+import calendar
 from datetime import datetime, date, time
+from zoneinfo import ZoneInfo
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -21,10 +23,17 @@ def schedules_list_view(request):
         threads = RecipientThread.objects.filter(owner=user).select_related("account")
         accounts = MessengerAccount.objects.filter(owner=user, status=MessengerAccount.Status.ACTIVE)
 
+    today_bangkok = timezone.now().astimezone(ZoneInfo("Asia/Bangkok")).date()
+    months = [(i, calendar.month_name[i]) for i in range(1, 13)]
+
     return render(request, "scheduler/schedules.html", {
         "schedules": schedules,
         "threads": threads,
         "accounts": accounts,
+        "today_str": today_bangkok.strftime("%Y-%m-%d"),
+        "today_month": today_bangkok.month,
+        "today_day": today_bangkok.day,
+        "months": months,
     })
 
 
@@ -39,6 +48,12 @@ def schedule_create_view(request):
         raw_time = request.POST.get("run_time", "08:00")
         raw_date = request.POST.get("run_date")
         raw_day_of_month = request.POST.get("day_of_month")
+        raw_annual_month = request.POST.get("annual_month")
+        raw_annual_day = request.POST.get("annual_day")
+
+        if schedule_type not in ScheduledMessage.ScheduleType.values:
+            messages.error(request, "Select a valid schedule frequency.")
+            return redirect("/schedules/")
 
         if not recipient_id or not template:
             messages.error(request, "Recipient and Message body are required.")
@@ -71,21 +86,57 @@ def schedule_create_view(request):
         except Exception:
             parsed_time = time(8, 0)
 
-        # Parse date
+        # Parse and validate schedule-type-specific date/day fields
         parsed_date = None
-        if raw_date:
+        parsed_day_of_month = None
+
+        if schedule_type == ScheduledMessage.ScheduleType.ONCE:
+            if not raw_date:
+                messages.error(request, "Select a valid target date for a one-off schedule.")
+                return redirect("/schedules/")
             try:
                 parsed_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
-            except Exception:
-                parsed_date = None
+            except ValueError:
+                messages.error(request, "Select a valid target date for a one-off schedule.")
+                return redirect("/schedules/")
 
-        # Parse day of month
-        parsed_day_of_month = None
-        if raw_day_of_month:
+        elif schedule_type == ScheduledMessage.ScheduleType.MONTHLY:
+            if not raw_day_of_month:
+                messages.error(request, "Day of month must be between 1 and 31.")
+                return redirect("/schedules/")
             try:
                 parsed_day_of_month = int(raw_day_of_month)
-            except Exception:
-                parsed_day_of_month = None
+            except ValueError:
+                parsed_day_of_month = 0
+            if not (1 <= parsed_day_of_month <= 31):
+                messages.error(request, "Day of month must be between 1 and 31.")
+                return redirect("/schedules/")
+
+        elif schedule_type == ScheduledMessage.ScheduleType.YEARLY:
+            if raw_annual_month and raw_annual_day:
+                try:
+                    month = int(raw_annual_month)
+                    day = int(raw_annual_day)
+                    if not (1 <= month <= 12):
+                        raise ValueError("Invalid month")
+                    max_day = calendar.monthrange(2000, month)[1]
+                    if not (1 <= day <= max_day):
+                        raise ValueError("Invalid day")
+                    # Store in leap year 2000 so Feb 29 is valid and month/day can be reused cleanly
+                    parsed_date = date(2000, month, day)
+                except ValueError:
+                    messages.error(request, "Select a valid month and day for an annual schedule.")
+                    return redirect("/schedules/")
+            elif raw_date:
+                try:
+                    d = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                    parsed_date = date(2000, d.month, d.day)
+                except ValueError:
+                    messages.error(request, "Select a valid month and day for an annual schedule.")
+                    return redirect("/schedules/")
+            else:
+                messages.error(request, "Select a month and day for an annual schedule.")
+                return redirect("/schedules/")
 
         # Calculate next_run_at in UTC
         next_run_at = calculate_next_run(

@@ -38,6 +38,30 @@ class ScheduledMessage(models.Model):
     def __str__(self):
         return f"{self.schedule_type} to {self.recipient.display_name}"
 
+    @property
+    def schedule_label(self) -> str:
+        """Human-readable schedule frequency description, omitting year for YEARLY."""
+        if self.schedule_type == self.ScheduleType.ONCE:
+            if self.run_date:
+                return f"One-off ({self.run_date.strftime('%b')} {self.run_date.day}, {self.run_date.year})"
+            return "One-off"
+        if self.schedule_type == self.ScheduleType.DAILY:
+            return "Daily"
+        if self.schedule_type == self.ScheduleType.MONTHLY:
+            day = self.day_of_month or (self.run_date.day if self.run_date else 1)
+            return f"Monthly (Day {day})"
+        if self.schedule_type == self.ScheduleType.YEARLY:
+            if self.run_date:
+                return f"Yearly ({self.run_date.strftime('%b')} {self.run_date.day})"
+            return "Yearly"
+        return self.get_schedule_type_display()
+
+    @property
+    def schedule_summary(self) -> str:
+        """Summary combining schedule frequency label with GMT+7 run time."""
+        time_str = self.run_time.strftime("%H:%M") if self.run_time else ""
+        return f"{self.schedule_label} · {time_str}" if time_str else self.schedule_label
+
 
 class DeliveryLog(models.Model):
     class Status(models.TextChoices):

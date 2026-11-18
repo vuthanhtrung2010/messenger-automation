@@ -57,18 +57,94 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <!-- One-off target date -->
                 <div id="field-date" class="flex flex-col gap-1.5">
                     <label for="run_date" class="w-fit cursor-pointer text-sm font-medium text-foreground">Target date</label>
                     <input
                         type="date"
                         id="run_date"
                         name="run_date"
+                        value="{{ today_str }}"
                         class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
                     >
+                    <div class="scrollbar-clean overflow-x-auto py-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="setScheduleNow()" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">Now</button>
+                            <button type="button" onclick="setDateToday()" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">Today</button>
+                            <button type="button" onclick="shiftTargetDate({ days: 1 })" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1 day</button>
+                            <button type="button" onclick="shiftTargetDate({ days: 7 })" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1 week</button>
+                            <button type="button" onclick="shiftTargetDate({ months: 1 })" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1 month</button>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="flex flex-col gap-1.5">
+                <!-- Annual month + day (no year) -->
+                <div id="field-annual" class="hidden flex-col gap-1.5">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label for="annual_month" class="w-fit cursor-pointer text-sm font-medium text-foreground">Month</label>
+                            <select
+                                id="annual_month"
+                                name="annual_month"
+                                onchange="syncAnnualDayMax()"
+                                class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                            >
+                                {% for num, name in months %}
+                                <option value="{{ num }}" {% if num == today_month %}selected{% endif %}>{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label for="annual_day" class="w-fit cursor-pointer text-sm font-medium text-foreground">Day</label>
+                            <input
+                                type="number"
+                                id="annual_day"
+                                name="annual_day"
+                                min="1"
+                                max="31"
+                                value="{{ today_day }}"
+                                inputmode="numeric"
+                                class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                            >
+                        </div>
+                    </div>
+                    <div class="scrollbar-clean overflow-x-auto py-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="setDateToday()" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">Today</button>
+                            <button type="button" onclick="shiftTargetDate({ days: 1 })" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1 day</button>
+                            <button type="button" onclick="shiftTargetDate({ months: 1 })" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1 month</button>
+                            <button type="button" onclick="setAnnualPreset(1, 1)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">Jan 1</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly day of month -->
+                <div id="field-day" class="hidden flex-col gap-1.5">
+                    <label for="day_of_month" class="w-fit cursor-pointer text-sm font-medium text-foreground">Day of month (1 to 31)</label>
+                    <input
+                        type="number"
+                        id="day_of_month"
+                        name="day_of_month"
+                        min="1"
+                        max="31"
+                        value="{{ today_day }}"
+                        inputmode="numeric"
+                        placeholder="1"
+                        class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                    >
+                    <div class="scrollbar-clean overflow-x-auto py-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="setDateToday()" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">Today</button>
+                            <button type="button" onclick="setMonthlyDay(1)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">1st</button>
+                            <button type="button" onclick="setMonthlyDay(15)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">15th</button>
+                            <button type="button" onclick="setMonthlyDay(31)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">31st</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Time (GMT+7) -->
+                <div id="field-time" class="flex flex-col gap-1.5">
                     <label for="run_time" class="w-fit cursor-pointer text-sm font-medium text-foreground">Time (GMT+7)</label>
                     <input
                         type="time"
@@ -78,19 +154,17 @@
                         required
                         class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
                     >
-                </div>
-
-                <div id="field-day" class="hidden flex-col gap-1.5">
-                    <label for="day_of_month" class="w-fit cursor-pointer text-sm font-medium text-foreground">Day of month (1 to 31)</label>
-                    <input
-                        type="number"
-                        id="day_of_month"
-                        name="day_of_month"
-                        min="1"
-                        max="31"
-                        placeholder="1"
-                        class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base tabular-nums text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
-                    >
+                    <div class="scrollbar-clean overflow-x-auto py-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" id="btn-time-now" onclick="setScheduleNow()" class="hidden shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">Now</button>
+                            <button type="button" onclick="shiftRunTime(5)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+5m</button>
+                            <button type="button" onclick="shiftRunTime(15)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+15m</button>
+                            <button type="button" onclick="shiftRunTime(60)" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">+1h</button>
+                            <button type="button" onclick="setRunTime('00:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">00:00</button>
+                            <button type="button" onclick="setRunTime('08:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">08:00</button>
+                            <button type="button" onclick="setRunTime('20:00')" class="shrink-0 cursor-pointer rounded-full bg-foreground/5 px-2.5 py-1 text-xs font-medium tabular-nums text-foreground/70 outline-hidden transition-colors hover:bg-foreground/10 hover:text-foreground">20:00</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -143,7 +217,7 @@
                             {{ s.message_template }}
                         </td>
                         <td class="whitespace-nowrap px-4 py-3.5 text-xs tabular-nums text-muted">
-                            {{ s.get_schedule_type_display }} · {{ s.run_time|time:"H:i" }}
+                            {{ s.schedule_summary }}
                         </td>
                         <td class="whitespace-nowrap px-4 py-3.5 text-xs tabular-nums text-foreground">
                             {% if s.next_run_at %}
@@ -199,28 +273,221 @@
 </div>
 
 <script>
+const BANGKOK_FORMATTER = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+});
+
+function pad2(n) {
+    return String(n).padStart(2, '0');
+}
+
+function getBangkokParts(dateObj = new Date()) {
+    const map = {};
+    for (const part of BANGKOK_FORMATTER.formatToParts(dateObj)) {
+        if (part.type !== 'literal') {
+            map[part.type] = part.value;
+        }
+    }
+    return {
+        year: Number(map.year),
+        month: Number(map.month),
+        day: Number(map.day),
+        hour: Number(map.hour) % 24,
+        minute: Number(map.minute),
+        second: Number(map.second),
+    };
+}
+
+function daysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
+}
+
+function syncAnnualDayMax() {
+    const monthEl = document.getElementById('annual_month');
+    const dayEl = document.getElementById('annual_day');
+    if (!monthEl || !dayEl) return;
+    const month = Number(monthEl.value) || 1;
+    // Leap year 2000 allows Feb 29 for annual birthdays
+    const maxDay = daysInMonth(2000, month);
+    dayEl.max = String(maxDay);
+    const cur = Number(dayEl.value);
+    if (cur > maxDay) {
+        dayEl.value = String(maxDay);
+    } else if (dayEl.value !== '' && cur < 1) {
+        dayEl.value = '1';
+    }
+}
+
+function setScheduleNow() {
+    const nowParts = getBangkokParts(new Date());
+    const offsetMinutes = nowParts.second >= 35 ? 2 : 1;
+    const target = getBangkokParts(new Date(Date.now() + offsetMinutes * 60 * 1000));
+
+    document.getElementById('run_date').value = `${target.year}-${pad2(target.month)}-${pad2(target.day)}`;
+    document.getElementById('annual_month').value = String(target.month);
+    syncAnnualDayMax();
+    document.getElementById('annual_day').value = String(target.day);
+    document.getElementById('day_of_month').value = String(target.day);
+    document.getElementById('run_time').value = `${pad2(target.hour)}:${pad2(target.minute)}`;
+}
+
+function setDateToday() {
+    const today = getBangkokParts(new Date());
+    document.getElementById('run_date').value = `${today.year}-${pad2(today.month)}-${pad2(today.day)}`;
+    document.getElementById('annual_month').value = String(today.month);
+    syncAnnualDayMax();
+    document.getElementById('annual_day').value = String(today.day);
+    document.getElementById('day_of_month').value = String(today.day);
+}
+
+function shiftTargetDate({ days = 0, months = 0 }) {
+    const type = document.getElementById('schedule_type').value;
+
+    if (type === 'YEARLY') {
+        const monthEl = document.getElementById('annual_month');
+        const dayEl = document.getElementById('annual_day');
+        const today = getBangkokParts(new Date());
+        let month = Number(monthEl.value) || today.month;
+        let day = Number(dayEl.value) || today.day;
+
+        if (months !== 0) {
+            const rawMonth = (month - 1) + months;
+            month = ((rawMonth % 12) + 12) % 12 + 1;
+            day = Math.min(day, daysInMonth(2000, month));
+        }
+        if (days !== 0) {
+            // Year 2000 is a leap year, so Date.UTC preserves Feb 29 step cleanly
+            const shifted = new Date(Date.UTC(2000, month - 1, day + days));
+            month = shifted.getUTCMonth() + 1;
+            day = shifted.getUTCDate();
+        }
+        monthEl.value = String(month);
+        syncAnnualDayMax();
+        dayEl.value = String(day);
+        return;
+    }
+
+    const dateEl = document.getElementById('run_date');
+    const today = getBangkokParts(new Date());
+    let year = today.year;
+    let month = today.month;
+    let day = today.day;
+
+    if (dateEl.value && /^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) {
+        const [y, m, d] = dateEl.value.split('-').map(Number);
+        year = y;
+        month = m;
+        day = d;
+    }
+
+    if (months !== 0) {
+        const rawMonth = (month - 1) + months;
+        year = year + Math.floor(rawMonth / 12);
+        month = ((rawMonth % 12) + 12) % 12 + 1;
+        day = Math.min(day, daysInMonth(year, month));
+    }
+    if (days !== 0) {
+        const shifted = new Date(Date.UTC(year, month - 1, day + days));
+        year = shifted.getUTCFullYear();
+        month = shifted.getUTCMonth() + 1;
+        day = shifted.getUTCDate();
+    }
+
+    dateEl.value = `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+function setAnnualPreset(month, day) {
+    document.getElementById('annual_month').value = String(month);
+    syncAnnualDayMax();
+    document.getElementById('annual_day').value = String(day);
+}
+
+function setMonthlyDay(day) {
+    document.getElementById('day_of_month').value = String(day);
+}
+
+function shiftRunTime(addMinutes) {
+    const timeEl = document.getElementById('run_time');
+    let [hour, minute] = (timeEl.value || '08:00').split(':').map(Number);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+        hour = 8;
+        minute = 0;
+    }
+    const totalMins = hour * 60 + minute + addMinutes;
+    const dayDelta = Math.floor(totalMins / 1440);
+    const wrappedMins = ((totalMins % 1440) + 1440) % 1440;
+    const nextHour = Math.floor(wrappedMins / 60);
+    const nextMin = wrappedMins % 60;
+
+    timeEl.value = `${pad2(nextHour)}:${pad2(nextMin)}`;
+
+    if (dayDelta !== 0) {
+        const type = document.getElementById('schedule_type').value;
+        if (type === 'ONCE' || type === 'YEARLY') {
+            shiftTargetDate({ days: dayDelta });
+        }
+    }
+}
+
+function setRunTime(hhmm) {
+    document.getElementById('run_time').value = hhmm;
+}
+
+function setBoxVisible(el, visible) {
+    if (!el) return;
+    if (visible) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    } else {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+}
+
 function toggleScheduleFields() {
     const type = document.getElementById('schedule_type').value;
     const dateField = document.getElementById('field-date');
+    const annualField = document.getElementById('field-annual');
     const dayField = document.getElementById('field-day');
+    const timeNowBtn = document.getElementById('btn-time-now');
 
-    if (type === 'ONCE' || type === 'YEARLY') {
-        dateField.classList.remove('hidden');
-        dateField.classList.add('flex');
-        dayField.classList.add('hidden');
-        dayField.classList.remove('flex');
-    } else if (type === 'MONTHLY') {
-        dateField.classList.add('hidden');
-        dateField.classList.remove('flex');
-        dayField.classList.remove('hidden');
-        dayField.classList.add('flex');
-    } else {
-        dateField.classList.add('hidden');
-        dateField.classList.remove('flex');
-        dayField.classList.add('hidden');
-        dayField.classList.remove('flex');
+    const runDateInput = document.getElementById('run_date');
+    const annualMonthSelect = document.getElementById('annual_month');
+    const annualDayInput = document.getElementById('annual_day');
+    const dayOfMonthInput = document.getElementById('day_of_month');
+
+    const isOnce = type === 'ONCE';
+    const isYearly = type === 'YEARLY';
+    const isMonthly = type === 'MONTHLY';
+
+    setBoxVisible(dateField, isOnce);
+    setBoxVisible(annualField, isYearly);
+    setBoxVisible(dayField, isMonthly);
+
+    if (timeNowBtn) {
+        timeNowBtn.classList.toggle('hidden', isOnce);
+    }
+
+    runDateInput.required = isOnce;
+    annualMonthSelect.required = isYearly;
+    annualDayInput.required = isYearly;
+    dayOfMonthInput.required = isMonthly;
+
+    if (isYearly) {
+        syncAnnualDayMax();
     }
 }
-document.addEventListener('DOMContentLoaded', toggleScheduleFields);
+
+document.addEventListener('DOMContentLoaded', () => {
+    syncAnnualDayMax();
+    toggleScheduleFields();
+});
 </script>
 {% endblock %}
