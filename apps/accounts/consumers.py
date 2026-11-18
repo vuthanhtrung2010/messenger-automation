@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime, timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from apps.accounts.models import MessengerAccount
+from apps.accounts.profile_lock import terminate_lingering_profile_browsers
 
 _ACCOUNT_LOCKS: dict[str, asyncio.Lock] = {}
 
@@ -15,26 +16,14 @@ def _get_account_lock(account_id: str) -> asyncio.Lock:
     return _ACCOUNT_LOCKS[account_id]
 
 
-def _cleanup_stale_profile_locks(profile_dir: str):
-    for lock_name in ("lock", ".parentlock"):
-        lock_path = os.path.join(profile_dir, lock_name)
-        if os.path.lexists(lock_path):
-            try:
-                os.unlink(lock_path)
-            except OSError:
-                pass
-
-
 async def launch_browser_session(profile_dir: str):
     """
     Launches an async Camoufox browser context with persistent profile.
-    Uses humanize=False for interactive streaming because a real human is driving
-    the cursor and keyboard directly (humanize=True adds ~470ms delay per mouse move).
     """
     from camoufox.async_api import AsyncCamoufox
 
     os.makedirs(profile_dir, exist_ok=True)
-    _cleanup_stale_profile_locks(profile_dir)
+    await asyncio.to_thread(terminate_lingering_profile_browsers, profile_dir)
 
     camoufox = AsyncCamoufox(
         headless=True,
@@ -47,6 +36,7 @@ async def launch_browser_session(profile_dir: str):
     browser = await camoufox.__aenter__()
     try:
         browser._camoufox_cm = camoufox
+        browser._profile_dir = profile_dir
     except Exception:
         pass
 
@@ -58,19 +48,23 @@ async def launch_browser_session(profile_dir: str):
     return browser, page
 
 
-async def close_browser_session(browser):
-    if not browser:
-        return
-    cm = getattr(browser, "_camoufox_cm", None)
-    try:
-        await browser.close()
-    except Exception:
-        pass
-    if cm is not None and not isinstance(cm, asyncio.Future):
+async def close_browser_session(browser, profile_dir: str | None = None):
+    if browser is not None:
+        cm = getattr(browser, "_camoufox_cm", None)
+        pdir = profile_dir or getattr(browser, "_profile_dir", None)
         try:
-            await cm.__aexit__(None, None, None)
+            await browser.close()
         except Exception:
             pass
+        if cm is not None and not isinstance(cm, asyncio.Future):
+            try:
+                await cm.__aexit__(None, None, None)
+            except Exception:
+                pass
+        if pdir and not isinstance(pdir, asyncio.Future) and isinstance(pdir, str):
+            await asyncio.to_thread(terminate_lingering_profile_browsers, pdir)
+    elif profile_dir:
+        await asyncio.to_thread(terminate_lingering_profile_browsers, profile_dir)
 
 
 class BrowserStreamConsumer(AsyncWebsocketConsumer):
@@ -143,7 +137,6 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
             try:
                 while self.is_running:
                     try:
-                        # Fast CSS-scaled JPEG capture (~22ms/frame -> up to 44 FPS)
                         frame = await self.page.screenshot(
                             type="jpeg",
                             quality=55,
@@ -176,23 +169,33 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                                 self.account.status = MessengerAccount.Status.ACTIVE
                                 self.account.last_login_at = datetime.now(timezone.utc)
                                 await self.account.asave()
+
+                                # Flush and close browser immediately so profile is unlocked for tasks
+                                await close_browser_session(self.browser, self.account.profile_dir)
+                                self.browser = None
+                                self.page = None
+                                self.is_running = False
+
                                 await self.send(text_data=json.dumps({
                                     "type": "login_success",
                                     "fb_user_id": fb_id
                                 }))
+                                await self.close()
+                                break
 
                         if is_active:
-                            await asyncio.sleep(0.03)  # ~25-30 FPS target during active interaction
+                            await asyncio.sleep(0.03)
                         else:
-                            await asyncio.sleep(0.25)  # 4 FPS when idle
+                            await asyncio.sleep(0.25)
                     except asyncio.CancelledError:
                         break
                     except Exception:
                         await asyncio.sleep(0.3)
             finally:
-                await close_browser_session(self.browser)
-                self.browser = None
-                self.page = None
+                if self.browser is not None:
+                    await close_browser_session(self.browser, self.account.profile_dir)
+                    self.browser = None
+                    self.page = None
 
     async def receive(self, text_data=None, bytes_data=None):
         if not text_data:
@@ -229,7 +232,6 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                 btn = data.get("button", "left")
 
                 if action == "move":
-                    # Drop redundant mouse move if a previous move is still in flight
                     if self._move_in_flight:
                         return
                     self._move_in_flight = True
@@ -270,6 +272,12 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                 self.account.status = MessengerAccount.Status.ACTIVE
                 self.account.last_login_at = datetime.now(timezone.utc)
                 await self.account.asave()
+
+                await close_browser_session(self.browser, self.account.profile_dir)
+                self.browser = None
+                self.page = None
+                self.is_running = False
+
                 await self.send(text_data=json.dumps({
                     "type": "login_success",
                     "fb_user_id": self.account.fb_user_id
@@ -286,7 +294,8 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                 await self.stream_task
             except (asyncio.CancelledError, Exception):
                 pass
-        if self.browser:
-            await close_browser_session(self.browser)
+        if self.browser is not None:
+            pdir = self.account.profile_dir if self.account else None
+            await close_browser_session(self.browser, pdir)
             self.browser = None
             self.page = None

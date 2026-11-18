@@ -54,9 +54,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     setBadgeStatus(msg.state || 'active', msg.message || 'Live stream');
                 } else if (msg.type === 'login_success') {
                     setBadgeStatus('active', `Authenticated (${msg.fb_user_id || 'Active'})`);
+                    try { socket.close(); } catch (e) {}
                     setTimeout(() => {
                         window.location.href = '/accounts/';
-                    }, 1200);
+                    }, 800);
                 } else if (msg.type === 'error') {
                     setBadgeStatus('error', msg.message || 'Session error');
                 }
@@ -182,4 +183,12 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.send(JSON.stringify({ type: 'done' }));
         });
     }
+
+    function closeSocketOnUnload() {
+        if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+            try { socket.close(); } catch (e) {}
+        }
+    }
+    window.addEventListener('pagehide', closeSocketOnUnload);
+    window.addEventListener('beforeunload', closeSocketOnUnload);
 });

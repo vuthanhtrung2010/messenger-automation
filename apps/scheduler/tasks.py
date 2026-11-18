@@ -69,7 +69,12 @@ def refresh_thread_name_task(thread_id_uuid: str):
     except RecipientThread.DoesNotExist:
         return None
 
-    name = fetch_thread_recipient_name(thread.account.profile_dir, thread.thread_id)
+    try:
+        name = fetch_thread_recipient_name(thread.account.profile_dir, thread.thread_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch recipient name for thread {thread.thread_id}: {e}")
+        name = None
+
     if name:
         thread.recipient_name = name
         thread.name_status = RecipientThread.NameStatus.FETCHED
