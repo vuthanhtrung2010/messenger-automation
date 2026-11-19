@@ -10,18 +10,30 @@
 
 {% block content %}
 <div class="max-w-lg rounded-2xl border border-border bg-surface p-5 sm:p-6">
-    <h1 class="text-xl font-semibold text-foreground">Connect Facebook account</h1>
-    <p class="mt-2 text-sm/6 text-pretty text-muted">Assign a label to identify this account. Next, an interactive Camoufox session will open so you can sign in and persist your browser profile.</p>
+    <h1 class="text-xl font-semibold text-foreground">Connect account</h1>
+    <p class="mt-2 text-sm/6 text-pretty text-muted">Choose a platform and assign a label to identify this account. Next, an interactive Camoufox session will open so you can sign in and persist your browser profile.</p>
 
-    <form method="post" action="/accounts/add/" class="mt-5">
+    <form method="post" action="/accounts/add/" class="mt-5 space-y-4">
         {% csrf_token %}
+        <div class="flex flex-col gap-1.5">
+            <label for="platform" class="w-fit cursor-pointer text-sm font-medium text-foreground">Platform</label>
+            <select
+                id="platform"
+                name="platform"
+                class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+            >
+                <option value="MESSENGER" selected>Facebook Messenger</option>
+                <option value="ZALO">Zalo</option>
+            </select>
+        </div>
+
         <div class="flex flex-col gap-1.5">
             <label for="name" class="w-fit cursor-pointer text-sm font-medium text-foreground">Account label</label>
             <input
                 type="text"
                 id="name"
                 name="name"
-                placeholder="Personal Messenger"
+                placeholder="Personal Messenger or Personal Zalo"
                 required
                 autofocus
                 class="h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground placeholder:text-muted outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"

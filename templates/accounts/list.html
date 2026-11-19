@@ -22,7 +22,8 @@
             <thead>
                 <tr class="bg-surface text-xs font-medium text-muted">
                     <th scope="col" class="px-4 py-3">Account</th>
-                    <th scope="col" class="px-4 py-3">Facebook ID</th>
+                    <th scope="col" class="px-4 py-3">Platform</th>
+                    <th scope="col" class="px-4 py-3">Account ID</th>
                     <th scope="col" class="px-4 py-3">Status</th>
                     <th scope="col" class="px-4 py-3">Last login</th>
                     <th scope="col" class="w-px whitespace-nowrap px-4 py-3 text-right"><span class="sr-only">Actions</span></th>
@@ -32,6 +33,13 @@
                 {% for acc in accounts %}
                 <tr class="transition-colors hover:bg-surface-hover">
                     <td class="px-4 py-3.5 font-medium text-foreground">{{ acc.name }}</td>
+                    <td class="px-4 py-3.5">
+                        {% if acc.platform == 'ZALO' %}
+                        <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-black/5">Zalo</span>
+                        {% else %}
+                        <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-black/5">Messenger</span>
+                        {% endif %}
+                    </td>
                     <td class="px-4 py-3.5 font-mono text-xs tabular-nums text-muted">
                         {% if acc.fb_user_id %}{{ acc.fb_user_id }}{% else %}—{% endif %}
                     </td>
@@ -59,6 +67,20 @@
                     </td>
                     <td class="whitespace-nowrap px-3 py-2.5 text-right">
                         <div class="inline-flex items-center justify-end gap-1.5">
+                            {% if acc.platform == 'ZALO' %}
+                            <form method="post" action="/accounts/{{ acc.id }}/check-session/" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover">
+                                    Check session
+                                </button>
+                            </form>
+                            <form method="post" action="/accounts/{{ acc.id }}/sync-contacts/" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover">
+                                    Sync contacts
+                                </button>
+                            </form>
+                            {% endif %}
                             <a href="/accounts/{{ acc.id }}/stream/" class="inline-flex h-8 min-h-8 cursor-pointer items-center justify-center rounded-lg border border-border-strong bg-surface px-2.5 text-xs font-medium text-foreground outline-hidden transition-colors hover:bg-button-hover">
                                 Open stream
                             </a>
@@ -73,7 +95,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="px-5 py-10 text-center">
+                    <td colspan="6" class="px-5 py-10 text-center">
                         <p class="text-sm font-medium text-foreground">No accounts connected yet</p>
                         <p class="mx-auto mt-1 max-w-[45ch] text-xs text-pretty text-muted">Connect a Facebook account using the live Camoufox browser stream to save a persistent session profile.</p>
                         <div class="mt-4">

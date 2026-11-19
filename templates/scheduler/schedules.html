@@ -19,25 +19,87 @@
             {% csrf_token %}
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div class="flex flex-col gap-1.5">
-                    <label for="recipient_id" class="w-fit cursor-pointer text-sm font-medium text-foreground">Recipient</label>
-                    <select
-                        id="recipient_id"
-                        name="recipient_id"
-                        required
-                        class="h-11 w-full cursor-pointer rounded-xl border border-border-strong bg-surface px-3.5 text-base text-foreground outline-hidden transition-colors focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
-                    >
-                        {% for thread in threads %}
-                        <option value="{{ thread.id }}" {% if form_draft.recipient_id == thread.id|stringformat:"s" %}selected{% endif %}>
-                            {% if thread.recipient_name %}
-                                {{ thread.recipient_name }} (Thread: {{ thread.thread_id }})
-                            {% else %}
-                                Thread: {{ thread.thread_id }} (Name pending)
-                            {% endif %}
-                        </option>
-                        {% empty %}
-                        <option value="" disabled selected>No recipients added yet</option>
-                        {% endfor %}
-                    </select>
+                    <label for="recipient-combobox-trigger" class="w-fit cursor-pointer text-sm font-medium text-foreground">Recipient</label>
+                    <input type="hidden" id="recipient_id" name="recipient_id" value="{{ form_draft.recipient_id|default:'' }}">
+                    <div id="recipient-combobox" class="relative">
+                        <button
+                            type="button"
+                            id="recipient-combobox-trigger"
+                            role="combobox"
+                            aria-expanded="false"
+                            aria-controls="recipient-combobox-listbox"
+                            aria-haspopup="listbox"
+                            onclick="toggleRecipientCombobox()"
+                            class="flex h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-border-strong bg-surface px-3.5 text-left text-base text-foreground outline-hidden transition-colors hover:bg-surface-hover focus:border-focus focus:ring-2 focus:ring-focus md:h-10 md:text-sm"
+                        >
+                            <span id="recipient-combobox-label" class="flex min-w-0 flex-1 items-center gap-2 truncate text-muted">
+                                {% if threads %}Select recipient...{% else %}No recipients added yet{% endif %}
+                            </span>
+                            <svg class="size-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>
+                            </svg>
+                        </button>
+
+                        <div
+                            id="recipient-combobox-popover"
+                            class="absolute left-0 right-0 z-50 mt-1.5 hidden overflow-hidden rounded-xl border border-border bg-surface-overlay shadow-popover"
+                        >
+                            <div class="flex items-center gap-2 border-b border-border px-3 py-2">
+                                <svg class="size-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                                </svg>
+                                <input
+                                    type="text"
+                                    id="recipient-combobox-search"
+                                    placeholder="Search name, thread ID, or platform..."
+                                    autocomplete="off"
+                                    oninput="filterRecipientOptions()"
+                                    onkeydown="handleRecipientSearchKeydown(event)"
+                                    class="h-7 w-full bg-transparent text-sm text-foreground placeholder:text-muted outline-hidden"
+                                >
+                            </div>
+
+                            <ul
+                                id="recipient-combobox-listbox"
+                                role="listbox"
+                                class="scrollbar-clean max-h-64 overflow-y-auto p-1"
+                            >
+                                {% for thread in threads %}
+                                <li
+                                    role="option"
+                                    aria-label="{{ thread.display_name }}"
+                                    data-value="{{ thread.id }}"
+                                    data-platform="{% if thread.account.platform == 'ZALO' %}Zalo{% else %}Messenger{% endif %}"
+                                    data-name="{{ thread.recipient_name|default:'Name pending' }}"
+                                    data-thread-id="{{ thread.thread_id }}"
+                                    data-search="{% if thread.account.platform == 'ZALO' %}zalo{% else %}messenger{% endif %} {{ thread.recipient_name|default:''|lower }} {{ thread.thread_id|lower }} {{ thread.account.name|lower }}"
+                                    aria-selected="{% if form_draft.recipient_id == thread.id|stringformat:'s' %}true{% else %}false{% endif %}"
+                                    onclick="selectRecipientOption(this)"
+                                    class="recipient-option flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-item-hover"
+                                >
+                                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                                        {% if thread.account.platform == 'ZALO' %}
+                                        <span class="inline-flex shrink-0 items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-inset ring-black/5">Zalo</span>
+                                        {% else %}
+                                        <span class="inline-flex shrink-0 items-center rounded-md bg-indigo-50 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 ring-1 ring-inset ring-black/5">Messenger</span>
+                                        {% endif %}
+                                        <span class="truncate font-medium">
+                                            {% if thread.recipient_name %}{{ thread.recipient_name }}{% else %}Thread: {{ thread.thread_id }} (Name pending){% endif %}
+                                        </span>
+                                        <span class="shrink-0 font-mono text-xs text-muted">{{ thread.thread_id }}</span>
+                                    </div>
+                                    <svg class="recipient-check size-4 shrink-0 text-foreground {% if form_draft.recipient_id != thread.id|stringformat:'s' %}invisible{% endif %}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M20 6 9 17l-5-5"/>
+                                    </svg>
+                                </li>
+                                {% endfor %}
+                                <li id="recipient-combobox-empty" class="{% if threads %}hidden{% endif %} px-3 py-6 text-center text-xs text-muted">
+                                    No recipients found.
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <p id="recipient-combobox-error" role="alert" class="hidden text-xs text-red-600">Please select a recipient.</p>
                     <p class="text-xs text-muted">Missing a person? <a href="/threads/" class="font-medium text-foreground underline-offset-4 outline-hidden hover:underline">Add their thread ID first</a></p>
                 </div>
 
@@ -198,6 +260,9 @@
         </form>
     </section>
 
+    <!-- Search & Platform Filter -->
+    {% include 'includes/filter_bar.html' with action_url='/schedules/' placeholder='Search by recipient, thread ID, message, or account...' %}
+
     <!-- Schedules Table -->
     <div class="overflow-hidden rounded-2xl border border-border bg-surface">
         <div class="overflow-x-auto">
@@ -217,7 +282,14 @@
                     <tr class="transition-colors hover:bg-surface-hover">
                         <td class="px-4 py-3.5">
                             <p class="font-medium text-foreground">{{ s.recipient.display_name }}</p>
-                            <p class="mt-0.5 text-xs text-muted">{{ s.account.name }}</p>
+                            <p class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                                {% if s.account.platform == 'ZALO' %}
+                                <span class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 ring-1 ring-inset ring-black/5">Zalo</span>
+                                {% else %}
+                                <span class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 ring-1 ring-inset ring-black/5">Messenger</span>
+                                {% endif %}
+                                <span>{{ s.account.name }}</span>
+                            </p>
                         </td>
                         <td class="max-w-xs truncate px-4 py-3.5 text-sm text-foreground" title="{{ s.message_template }}">
                             {{ s.message_template }}
@@ -573,6 +645,16 @@ function handleDateOrTimeInput() {
 }
 
 function handleScheduleSubmit(event) {
+    const recipientInput = document.getElementById('recipient_id');
+    const recipientErr = document.getElementById('recipient-combobox-error');
+    if (!recipientInput.value) {
+        event.preventDefault();
+        if (recipientErr) recipientErr.classList.remove('hidden');
+        openRecipientCombobox();
+        return false;
+    }
+    if (recipientErr) recipientErr.classList.add('hidden');
+
     syncOnceConstraints();
     if (!validateOnceSchedule({ showError: true })) {
         event.preventDefault();
@@ -587,6 +669,166 @@ function handleScheduleSubmit(event) {
     }
     return true;
 }
+
+// --- Shadcn-style Searchable Recipient Combobox ---
+let recipientActiveIndex = -1;
+
+function getVisibleRecipientOptions() {
+    return Array.from(document.querySelectorAll('#recipient-combobox-listbox .recipient-option'))
+        .filter((el) => !el.classList.contains('hidden'));
+}
+
+function updateRecipientTriggerLabel(optionEl) {
+    const labelEl = document.getElementById('recipient-combobox-label');
+    if (!labelEl) return;
+    if (!optionEl) {
+        labelEl.className = 'flex min-w-0 flex-1 items-center gap-2 truncate text-muted';
+        labelEl.textContent = document.querySelectorAll('.recipient-option').length
+            ? 'Select recipient...'
+            : 'No recipients added yet';
+        return;
+    }
+    const platform = optionEl.dataset.platform;
+    const name = optionEl.dataset.name;
+    const threadId = optionEl.dataset.threadId;
+    const badgeClass = platform === 'Zalo'
+        ? 'bg-sky-50 text-sky-700'
+        : 'bg-indigo-50 text-indigo-700';
+
+    labelEl.className = 'flex min-w-0 flex-1 items-center gap-2 truncate text-foreground';
+    labelEl.innerHTML = '';
+
+    const badge = document.createElement('span');
+    badge.className = `inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-black/5 ${badgeClass}`;
+    badge.textContent = platform;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'truncate font-medium';
+    nameSpan.textContent = name;
+
+    const idSpan = document.createElement('span');
+    idSpan.className = 'shrink-0 font-mono text-xs text-muted';
+    idSpan.textContent = threadId;
+
+    labelEl.append(badge, nameSpan, idSpan);
+}
+
+function openRecipientCombobox() {
+    const popover = document.getElementById('recipient-combobox-popover');
+    const trigger = document.getElementById('recipient-combobox-trigger');
+    const search = document.getElementById('recipient-combobox-search');
+    if (!popover || !trigger) return;
+    popover.classList.remove('hidden');
+    trigger.setAttribute('aria-expanded', 'true');
+    if (search) {
+        search.focus();
+        search.select();
+    }
+}
+
+function closeRecipientCombobox() {
+    const popover = document.getElementById('recipient-combobox-popover');
+    const trigger = document.getElementById('recipient-combobox-trigger');
+    if (!popover || !trigger) return;
+    popover.classList.add('hidden');
+    trigger.setAttribute('aria-expanded', 'false');
+    recipientActiveIndex = -1;
+    clearRecipientHighlight();
+}
+
+function toggleRecipientCombobox() {
+    const popover = document.getElementById('recipient-combobox-popover');
+    if (!popover) return;
+    if (popover.classList.contains('hidden')) {
+        openRecipientCombobox();
+    } else {
+        closeRecipientCombobox();
+    }
+}
+
+function clearRecipientHighlight() {
+    document.querySelectorAll('#recipient-combobox-listbox .recipient-option').forEach((el) => {
+        el.classList.remove('bg-item-hover');
+    });
+}
+
+function highlightRecipientAt(idx) {
+    const visible = getVisibleRecipientOptions();
+    clearRecipientHighlight();
+    if (!visible.length) {
+        recipientActiveIndex = -1;
+        return;
+    }
+    recipientActiveIndex = Math.max(0, Math.min(idx, visible.length - 1));
+    const activeEl = visible[recipientActiveIndex];
+    activeEl.classList.add('bg-item-hover');
+    activeEl.scrollIntoView({ block: 'nearest' });
+}
+
+function filterRecipientOptions() {
+    const search = document.getElementById('recipient-combobox-search');
+    const emptyEl = document.getElementById('recipient-combobox-empty');
+    const q = (search ? search.value : '').trim().toLowerCase();
+    let visibleCount = 0;
+
+    document.querySelectorAll('#recipient-combobox-listbox .recipient-option').forEach((el) => {
+        const hay = el.dataset.search || '';
+        const match = !q || hay.includes(q);
+        el.classList.toggle('hidden', !match);
+        if (match) visibleCount += 1;
+    });
+
+    if (emptyEl) {
+        emptyEl.classList.toggle('hidden', visibleCount > 0);
+    }
+    recipientActiveIndex = -1;
+    clearRecipientHighlight();
+}
+
+function selectRecipientOption(optionEl) {
+    const hiddenInput = document.getElementById('recipient_id');
+    const errEl = document.getElementById('recipient-combobox-error');
+    if (!optionEl || !hiddenInput) return;
+
+    hiddenInput.value = optionEl.dataset.value || '';
+    if (errEl) errEl.classList.add('hidden');
+
+    document.querySelectorAll('#recipient-combobox-listbox .recipient-option').forEach((el) => {
+        const isSelected = el === optionEl;
+        el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        const check = el.querySelector('.recipient-check');
+        if (check) check.classList.toggle('invisible', !isSelected);
+    });
+
+    updateRecipientTriggerLabel(optionEl);
+    closeRecipientCombobox();
+}
+
+function handleRecipientSearchKeydown(event) {
+    const visible = getVisibleRecipientOptions();
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        highlightRecipientAt(recipientActiveIndex + 1);
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        highlightRecipientAt(recipientActiveIndex <= 0 ? 0 : recipientActiveIndex - 1);
+    } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const target = recipientActiveIndex >= 0 ? visible[recipientActiveIndex] : visible[0];
+        if (target) selectRecipientOption(target);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRecipientCombobox();
+        document.getElementById('recipient-combobox-trigger')?.focus();
+    }
+}
+
+document.addEventListener('click', (event) => {
+    const container = document.getElementById('recipient-combobox');
+    if (container && !container.contains(event.target)) {
+        closeRecipientCombobox();
+    }
+});
 
 function setBoxVisible(el, visible) {
     if (!el) return;
@@ -640,6 +882,11 @@ function toggleScheduleFields() {
 document.addEventListener('DOMContentLoaded', () => {
     syncAnnualDayMax();
     toggleScheduleFields();
+    const initialVal = document.getElementById('recipient_id')?.value;
+    if (initialVal) {
+        const initialOpt = document.querySelector(`#recipient-combobox-listbox .recipient-option[data-value="${CSS.escape(initialVal)}"]`);
+        if (initialOpt) updateRecipientTriggerLabel(initialOpt);
+    }
 });
 </script>
 {% endblock %}

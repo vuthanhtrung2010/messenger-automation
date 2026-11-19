@@ -13,10 +13,12 @@ urlpatterns = [
     path("login/", core_views.custom_login_view, name="login"),
     path("logout/", core_views.custom_logout_view, name="logout"),
 
-    # Facebook Accounts
+    # Connected Accounts (Facebook Messenger & Zalo)
     path("accounts/", account_views.accounts_list_view, name="accounts_list"),
     path("accounts/add/", account_views.account_create_view, name="account_create"),
     path("accounts/<uuid:account_id>/stream/", account_views.account_stream_view, name="account_stream"),
+    path("accounts/<uuid:account_id>/check-session/", account_views.account_check_session_view, name="account_check_session"),
+    path("accounts/<uuid:account_id>/sync-contacts/", account_views.account_sync_contacts_view, name="account_sync_contacts"),
     path("accounts/<uuid:account_id>/delete/", account_views.account_delete_view, name="account_delete"),
 
     # Recipients & Threads

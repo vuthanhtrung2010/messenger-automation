@@ -32,7 +32,13 @@
                     <span id="status-text">Connecting</span>
                 </span>
             </div>
-            <p class="mt-1 text-xs text-muted">Click inside the browser viewport to focus inputs. Press Ctrl+V or use Paste clipboard to insert text.</p>
+            <p class="mt-1 text-xs text-muted">
+                {% if account.platform == 'ZALO' %}
+                Scan the QR code with your Zalo mobile app. Your session will be detected and saved automatically once logged in.
+                {% else %}
+                Click inside the browser viewport to focus inputs. Press Ctrl+V or use Paste clipboard to insert text.
+                {% endif %}
+            </p>
         </div>
     </div>
 

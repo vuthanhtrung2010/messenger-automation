@@ -17,7 +17,7 @@ def _get_account_lock(account_id: str) -> asyncio.Lock:
     return _ACCOUNT_LOCKS[account_id]
 
 
-async def launch_browser_session(profile_dir: str):
+async def launch_browser_session(profile_dir: str, platform: str = MessengerAccount.Platform.MESSENGER):
     """
     Launches an async Camoufox browser context with persistent profile.
     """
@@ -28,7 +28,7 @@ async def launch_browser_session(profile_dir: str):
     try:
         await asyncio.to_thread(terminate_lingering_profile_browsers, profile_dir)
 
-        camoufox = AsyncCamoufox(
+        kwargs = dict(
             headless=True,
             persistent_context=True,
             user_data_dir=profile_dir,
@@ -36,6 +36,13 @@ async def launch_browser_session(profile_dir: str):
             i_know_what_im_doing=True,
             viewport={"width": 1280, "height": 800},
         )
+        if platform == MessengerAccount.Platform.ZALO:
+            kwargs["firefox_user_prefs"] = {
+                "dom.storageManager.prompt.testing": True,
+                "dom.storageManager.prompt.testing.allow": True,
+            }
+
+        camoufox = AsyncCamoufox(**kwargs)
         browser = await camoufox.__aenter__()
     except Exception:
         mark_profile_streaming(profile_dir, False)
@@ -48,11 +55,44 @@ async def launch_browser_session(profile_dir: str):
         pass
 
     page = browser.pages[0] if browser.pages else await browser.new_page()
+    login_url = (
+        "https://chat.zalo.me"
+        if platform == MessengerAccount.Platform.ZALO
+        else "https://www.facebook.com/login"
+    )
     try:
-        await page.goto("https://www.facebook.com/login", wait_until="commit", timeout=20000)
+        await page.goto(login_url, wait_until="commit", timeout=20000)
     except Exception as e:
         print(f"Error loading initial login page: {e}")
     return browser, page
+
+
+async def _detect_logged_in_user_id(platform: str, browser, page) -> str | None:
+    """Returns the authenticated platform user ID if logged in, otherwise None."""
+    cookies = await browser.cookies()
+    if platform == MessengerAccount.Platform.ZALO:
+        has_sek = any(
+            c.get("name") == "zpw_sek" and "zalo.me" in c.get("domain", "")
+            for c in cookies
+        )
+        if not has_sek:
+            return None
+        try:
+            if await page.locator("#contact-search-input").count() == 0:
+                return None
+            uid = await page.evaluate(
+                "() => localStorage.getItem('sh_z_recentuid') || localStorage.getItem('sh_zlast_uid')"
+            )
+            return str(uid).strip() if uid else "zalo_active"
+        except Exception:
+            return None
+
+    fb_cookies = {
+        c["name"]: c["value"]
+        for c in cookies
+        if "facebook.com" in c.get("domain", "")
+    }
+    return fb_cookies.get("c_user")
 
 
 async def close_browser_session(browser, profile_dir: str | None = None):
@@ -126,7 +166,10 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                     "state": "starting",
                     "message": "Starting browser"
                 }))
-                self.browser, self.page = await launch_browser_session(self.account.profile_dir)
+                self.browser, self.page = await launch_browser_session(
+                    self.account.profile_dir,
+                    platform=self.account.platform,
+                )
                 self.last_interaction_time = asyncio.get_event_loop().time()
                 self.browser_ready.set()
                 await self.send(text_data=json.dumps({
@@ -164,19 +207,15 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                             last_hash = frame_hash
                             await self.send(bytes_data=frame)
 
-                        # Check cookies at most once every 2.0 seconds
+                        # Check cookies/session at most once every 2.0 seconds
                         if not self.logged_in_notified and (now - self.last_cookie_check_time) >= 2.0:
                             self.last_cookie_check_time = now
-                            cookies = await self.browser.cookies()
-                            fb_cookies = {
-                                c["name"]: c["value"]
-                                for c in cookies
-                                if "facebook.com" in c.get("domain", "")
-                            }
-                            if "c_user" in fb_cookies:
+                            platform_uid = await _detect_logged_in_user_id(
+                                self.account.platform, self.browser, self.page
+                            )
+                            if platform_uid:
                                 self.logged_in_notified = True
-                                fb_id = fb_cookies["c_user"]
-                                self.account.fb_user_id = fb_id
+                                self.account.fb_user_id = platform_uid
                                 self.account.status = MessengerAccount.Status.ACTIVE
                                 self.account.last_login_at = datetime.now(timezone.utc)
                                 await self.account.asave()
@@ -189,7 +228,7 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
 
                                 await self.send(text_data=json.dumps({
                                     "type": "login_success",
-                                    "fb_user_id": fb_id
+                                    "fb_user_id": platform_uid
                                 }))
                                 await self.close()
                                 break
@@ -272,14 +311,10 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
                     await self.page.keyboard.up(key)
 
             elif msg_type == "done":
-                cookies = await self.browser.cookies()
-                fb_cookies = {
-                    c["name"]: c["value"]
-                    for c in cookies
-                    if "facebook.com" in c.get("domain", "")
-                }
-                fb_id = fb_cookies.get("c_user", "")
-                self.account.fb_user_id = fb_id or self.account.fb_user_id
+                platform_uid = await _detect_logged_in_user_id(
+                    self.account.platform, self.browser, self.page
+                )
+                self.account.fb_user_id = platform_uid or self.account.fb_user_id
                 self.account.status = MessengerAccount.Status.ACTIVE
                 self.account.last_login_at = datetime.now(timezone.utc)
                 await self.account.asave()

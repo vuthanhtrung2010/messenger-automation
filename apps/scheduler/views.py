@@ -1,6 +1,7 @@
 import calendar
 from datetime import datetime, date, time, timedelta
 from zoneinfo import ZoneInfo
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -18,6 +19,14 @@ def _safe_int(raw_val, default: int) -> int:
         return default
 
 
+def _parse_filter_params(request) -> tuple[str, str]:
+    search_query = request.GET.get("q", "").strip()
+    platform_filter = request.GET.get("platform", "").strip().upper()
+    if platform_filter not in MessengerAccount.Platform.values:
+        platform_filter = ""
+    return search_query, platform_filter
+
+
 @login_required
 def schedules_list_view(request):
     user = request.user
@@ -30,6 +39,17 @@ def schedules_list_view(request):
         threads = RecipientThread.objects.filter(owner=user).select_related("account")
         accounts = MessengerAccount.objects.filter(owner=user, status=MessengerAccount.Status.ACTIVE)
 
+    search_query, platform_filter = _parse_filter_params(request)
+    if platform_filter:
+        schedules = schedules.filter(account__platform=platform_filter)
+    if search_query:
+        schedules = schedules.filter(
+            Q(recipient__recipient_name__icontains=search_query)
+            | Q(recipient__thread_id__icontains=search_query)
+            | Q(message_template__icontains=search_query)
+            | Q(account__name__icontains=search_query)
+        )
+
     bangkok_tz = ZoneInfo("Asia/Bangkok")
     now_bangkok = timezone.now().astimezone(bangkok_tz)
     default_bangkok = now_bangkok + timedelta(minutes=5)
@@ -40,6 +60,9 @@ def schedules_list_view(request):
         "schedules": schedules,
         "threads": threads,
         "accounts": accounts,
+        "search_query": search_query,
+        "platform_filter": platform_filter,
+        "platforms": MessengerAccount.Platform.choices,
         "today_str": now_bangkok.strftime("%Y-%m-%d"),
         "default_date_str": form_draft.get("run_date") or default_bangkok.strftime("%Y-%m-%d"),
         "default_time_str": form_draft.get("run_time") or default_bangkok.strftime("%H:%M"),
@@ -251,8 +274,29 @@ def schedule_delete_view(request, schedule_id):
 def delivery_logs_view(request):
     user = request.user
     if user.is_superuser:
-        logs = DeliveryLog.objects.select_related("recipient_thread", "scheduled_message").all()
+        logs = DeliveryLog.objects.select_related("recipient_thread", "recipient_thread__account", "scheduled_message", "scheduled_message__account").all()
     else:
-        logs = DeliveryLog.objects.filter(scheduled_message__owner=user).select_related("recipient_thread", "scheduled_message")
+        logs = DeliveryLog.objects.filter(scheduled_message__owner=user).select_related("recipient_thread", "recipient_thread__account", "scheduled_message", "scheduled_message__account")
 
-    return render(request, "scheduler/logs.html", {"logs": logs})
+    search_query, platform_filter = _parse_filter_params(request)
+    if platform_filter:
+        logs = logs.filter(scheduled_message__account__platform=platform_filter)
+    if search_query:
+        logs = logs.filter(
+            Q(recipient_thread__recipient_name__icontains=search_query)
+            | Q(recipient_thread__thread_id__icontains=search_query)
+            | Q(rendered_content__icontains=search_query)
+            | Q(error_message__icontains=search_query)
+            | Q(scheduled_message__account__name__icontains=search_query)
+        )
+
+    return render(
+        request,
+        "scheduler/logs.html",
+        {
+            "logs": logs,
+            "search_query": search_query,
+            "platform_filter": platform_filter,
+            "platforms": MessengerAccount.Platform.choices,
+        },
+    )
