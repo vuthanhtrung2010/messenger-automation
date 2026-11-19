@@ -42,6 +42,16 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
+if [ "${USE_DEVENV:-auto}" = "1" ] || { [ "${USE_DEVENV:-auto}" = "auto" ] && [ -f /etc/NIXOS ]; }; then
+    RUN_PREFIX=(devenv shell -- uv run)
+else
+    # Avoid mixing /nix/store libraries with host glibc on non-NixOS distros (e.g. Ubuntu)
+    if [[ "${LD_LIBRARY_PATH:-}" == *"/nix/store"* ]]; then
+        unset LD_LIBRARY_PATH
+    fi
+    RUN_PREFIX=(uv run)
+fi
+
 echo "=== Facebook Messenger Automation Services ==="
 echo "1. Checking/Starting Redis server..."
 if ! pgrep -x "redis-server" > /dev/null; then
@@ -52,19 +62,19 @@ else
 fi
 
 echo "2. Applying database migrations..."
-devenv shell -- uv run python manage.py migrate
+"${RUN_PREFIX[@]}" python manage.py migrate
 
 echo "3. Starting Celery Worker (shared warm-browser threads) & Celery Beat in background..."
 pkill -f "celery -A config" 2>/dev/null || true
 pkill -f "camoufox.*$PWD/data/profiles" 2>/dev/null || true
 rm -f celerybeat-schedule*
 sleep 0.5
-devenv shell -- uv run celery -A config worker --pool=threads --concurrency=6 --loglevel=info &
+"${RUN_PREFIX[@]}" celery -A config worker --pool=threads --concurrency=6 --loglevel=info &
 CELERY_WORKER_PID=$!
-devenv shell -- uv run celery -A config beat --loglevel=info &
+"${RUN_PREFIX[@]}" celery -A config beat --loglevel=info &
 CELERY_BEAT_PID=$!
 
 trap "echo 'Stopping background workers...'; kill $CELERY_WORKER_PID $CELERY_BEAT_PID 2>/dev/null || true; pkill -f 'celery -A config' 2>/dev/null || true; pkill -f \"camoufox.*$PWD/data/profiles\" 2>/dev/null || true; exit" SIGINT SIGTERM
 
 echo "4. Starting Django ASGI Web Server (Daphne with auto-reload) on http://127.0.0.1:${SERVER_PORT} (bound to ${SERVER_HOST}:${SERVER_PORT})..."
-devenv shell -- uv run python manage.py runserver "${SERVER_HOST}:${SERVER_PORT}"
+"${RUN_PREFIX[@]}" python manage.py runserver "${SERVER_HOST}:${SERVER_PORT}"
