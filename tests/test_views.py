@@ -25,6 +25,33 @@ def test_login_invalid_credentials_shows_error_and_preserves_username():
 
 
 @pytest.mark.django_db
+def test_login_csrf_passes_behind_https_proxy():
+    User.objects.create_user(username="proxyadmin", password="correctpassword")
+    client = Client(enforce_csrf_checks=True)
+
+    get_res = client.get(
+        "/login/",
+        HTTP_HOST="message-automation.trunghsgs.edu.vn",
+        HTTP_X_FORWARDED_PROTO="https",
+    )
+    assert get_res.status_code == 200
+    csrf_token = client.cookies["csrftoken"].value
+
+    post_res = client.post(
+        "/login/",
+        {
+            "username": "proxyadmin",
+            "password": "correctpassword",
+            "csrfmiddlewaretoken": csrf_token,
+        },
+        HTTP_HOST="message-automation.trunghsgs.edu.vn",
+        HTTP_ORIGIN="https://message-automation.trunghsgs.edu.vn",
+        HTTP_X_FORWARDED_PROTO="https",
+    )
+    assert post_res.status_code == 302
+
+
+@pytest.mark.django_db
 def test_dashboard_and_schedule_views_authenticated():
     user = User.objects.create_user(username="u1", password="pw")
     client = Client()
