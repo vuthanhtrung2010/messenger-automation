@@ -7,7 +7,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="overflow-hidden rounded-2xl border border-border bg-surface">
+<div class="space-y-4">
+    <!-- Search & Platform Filter -->
+    {% include 'includes/filter_bar.html' with action_url='/logs/' placeholder='Search by recipient, message, error, or account...' %}
+
+    <div class="overflow-hidden rounded-2xl border border-border bg-surface">
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-border text-left text-sm">
             <thead>
@@ -61,5 +65,6 @@
             </tbody>
         </table>
     </div>
+</div>
 </div>
 {% endblock %}

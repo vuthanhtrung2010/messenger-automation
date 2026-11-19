@@ -12,7 +12,7 @@
     <section class="rounded-2xl border border-border bg-surface p-5">
         <header class="mb-4">
             <h2 class="text-base font-semibold text-foreground">Add recipient thread</h2>
-            <p class="mt-1 text-xs text-muted">Enter a Facebook Messenger thread ID or conversation URL. The worker will extract the participant name automatically.</p>
+            <p class="mt-1 text-xs text-muted">Enter a Facebook Messenger thread ID/URL or a Zalo User/Group ID (or use "Sync contacts" on a Zalo account). The worker will resolve the participant name automatically.</p>
         </header>
 
         <form method="post" action="/threads/" class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -55,6 +55,9 @@
         </form>
     </section>
 
+    <!-- Search & Platform Filter -->
+    {% include 'includes/filter_bar.html' with action_url='/threads/' placeholder='Search by recipient name, thread ID, or account...' %}
+
     <!-- Recipients Table -->
     <div class="overflow-hidden rounded-2xl border border-border bg-surface">
         <div class="overflow-x-auto">
@@ -62,6 +65,7 @@
                 <thead>
                     <tr class="bg-surface text-xs font-medium text-muted">
                         <th scope="col" class="px-4 py-3">Recipient</th>
+                        <th scope="col" class="px-4 py-3">Platform</th>
                         <th scope="col" class="px-4 py-3">Thread ID</th>
                         <th scope="col" class="px-4 py-3">Account</th>
                         <th scope="col" class="px-4 py-3">Status</th>
@@ -75,10 +79,21 @@
                         <td class="px-4 py-3.5 font-medium text-foreground">
                             {% if t.recipient_name %}{{ t.recipient_name }}{% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
+                        <td class="px-4 py-3.5">
+                            {% if t.account.platform == 'ZALO' %}
+                            <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-black/5">Zalo</span>
+                            {% else %}
+                            <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-black/5">Messenger</span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3.5 font-mono text-xs tabular-nums text-foreground">
+                            {% if t.account.platform == 'ZALO' %}
+                            <span>{{ t.thread_id }}</span>
+                            {% else %}
                             <a href="https://www.facebook.com/messages/t/{{ t.thread_id }}" target="_blank" rel="noopener noreferrer" class="underline-offset-4 outline-hidden hover:underline">
                                 {{ t.thread_id }}
                             </a>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-3.5 text-sm text-muted">{{ t.account.name }}</td>
                         <td class="px-4 py-3.5">
@@ -119,7 +134,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-5 py-10 text-center">
+                        <td colspan="7" class="px-5 py-10 text-center">
                             <p class="text-sm font-medium text-foreground">No recipients added yet</p>
                             <p class="mx-auto mt-1 max-w-[45ch] text-xs text-pretty text-muted">Paste a Messenger thread ID above to fetch the recipient's name and enable scheduling.</p>
                         </td>

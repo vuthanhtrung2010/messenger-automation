@@ -4,10 +4,12 @@ import contextlib
 import logging
 from celery import shared_task
 from django.utils import timezone
+from apps.accounts.models import MessengerAccount
 from apps.scheduler.models import ScheduledMessage, DeliveryLog
 from apps.messenger.models import RecipientThread
 from apps.scheduler.services import render_message_template, calculate_next_run
 from apps.messenger.services import send_thread_message, fetch_thread_recipient_name
+from apps.messenger.zalo_service import send_zalo_message, fetch_zalo_recipient_name, list_zalo_contacts, check_zalo_session
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +72,22 @@ def dispatch_scheduled_message(schedule_id: str, expected_run_at: str | None = N
         account = schedule.account
 
         rendered_text = render_message_template(schedule.message_template, recipient.recipient_name)
-        success, error_msg, screenshot_path = send_thread_message(
-            profile_dir=account.profile_dir,
-            thread_id=recipient.thread_id,
-            message=rendered_text,
-        )
+        if account.platform == MessengerAccount.Platform.ZALO:
+            success, error_msg, screenshot_path = send_zalo_message(
+                profile_dir=account.profile_dir,
+                thread_id=recipient.thread_id,
+                message=rendered_text,
+                recipient_name=recipient.recipient_name,
+            )
+            if not success and "session expired" in (error_msg or "").lower():
+                account.status = MessengerAccount.Status.EXPIRED
+                account.save(update_fields=["status", "updated_at"])
+        else:
+            success, error_msg, screenshot_path = send_thread_message(
+                profile_dir=account.profile_dir,
+                thread_id=recipient.thread_id,
+                message=rendered_text,
+            )
 
         # Record delivery log
         DeliveryLog.objects.create(
@@ -119,7 +132,10 @@ def refresh_thread_name_task(thread_id_uuid: str):
         return None
 
     try:
-        name = fetch_thread_recipient_name(thread.account.profile_dir, thread.thread_id)
+        if thread.account.platform == MessengerAccount.Platform.ZALO:
+            name = fetch_zalo_recipient_name(thread.account.profile_dir, thread.thread_id)
+        else:
+            name = fetch_thread_recipient_name(thread.account.profile_dir, thread.thread_id)
     except Exception as e:
         logger.error(f"Failed to fetch recipient name for thread {thread.thread_id}: {e}")
         name = None
@@ -149,3 +165,87 @@ def check_and_dispatch_due_messages():
         dispatch_scheduled_message.delay(str(schedule.id), expected_iso)
         count += 1
     return count
+
+
+@shared_task
+def sync_zalo_contacts_task(account_id: str):
+    """
+    Asynchronously syncs Zalo contacts from localStorage into RecipientThread records.
+    """
+    try:
+        account = MessengerAccount.objects.get(id=account_id)
+    except MessengerAccount.DoesNotExist:
+        return None
+
+    if account.platform != MessengerAccount.Platform.ZALO:
+        return None
+
+    try:
+        contacts = list_zalo_contacts(account.profile_dir)
+    except Exception as e:
+        logger.error(f"Failed to sync Zalo contacts for account {account_id}: {e}")
+        if "expired" in str(e).lower() or "logged out" in str(e).lower():
+            account.status = MessengerAccount.Status.EXPIRED
+            account.save(update_fields=["status", "updated_at"])
+        return None
+
+    created_count = 0
+    updated_count = 0
+    now = timezone.now()
+    for c in contacts:
+        tid = (c.get("thread_id") or "").strip()
+        cname = (c.get("name") or "").strip()
+        if not tid or not cname:
+            continue
+        obj, created = RecipientThread.objects.get_or_create(
+            account=account,
+            thread_id=tid,
+            defaults={
+                "owner": account.owner,
+                "recipient_name": cname,
+                "name_status": RecipientThread.NameStatus.FETCHED,
+                "last_fetched_at": now,
+            },
+        )
+        if created:
+            created_count += 1
+        elif obj.recipient_name != cname or obj.name_status != RecipientThread.NameStatus.FETCHED:
+            obj.recipient_name = cname
+            obj.name_status = RecipientThread.NameStatus.FETCHED
+            obj.last_fetched_at = now
+            obj.save(update_fields=["recipient_name", "name_status", "last_fetched_at", "updated_at"])
+            updated_count += 1
+
+    return {"created": created_count, "updated": updated_count}
+
+
+@shared_task
+def check_zalo_session_task(account_id: str):
+    """
+    Asynchronously checks if a Zalo account's browser session is still logged in.
+    """
+    try:
+        account = MessengerAccount.objects.get(id=account_id)
+    except MessengerAccount.DoesNotExist:
+        return None
+
+    if account.platform != MessengerAccount.Platform.ZALO:
+        return None
+
+    try:
+        is_active, zalo_uid = check_zalo_session(account.profile_dir)
+    except Exception as e:
+        logger.error(f"Failed to check Zalo session for account {account_id}: {e}")
+        return None
+
+    if is_active:
+        account.status = MessengerAccount.Status.ACTIVE
+        if zalo_uid:
+            account.fb_user_id = zalo_uid
+        account.last_login_at = timezone.now()
+        account.save()
+        return True
+
+    account.status = MessengerAccount.Status.EXPIRED
+    account.save(update_fields=["status", "updated_at"])
+    return False
