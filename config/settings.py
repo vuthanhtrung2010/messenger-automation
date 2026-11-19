@@ -13,6 +13,9 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in ("true", "1", "yes")
 
 ALLOWED_HOSTS = ["*"]
 
+DJANGO_HOST = os.environ.get("DJANGO_HOST", "0.0.0.0")
+DJANGO_PORT = os.environ.get("DJANGO_PORT") or os.environ.get("PORT") or "8000"
+
 INSTALLED_APPS = [
     "daphne",
     "django.contrib.admin",

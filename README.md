@@ -131,6 +131,13 @@ You can launch all services (Redis, Celery Worker, Celery Beat, and Daphne ASGI 
 ./run_dev.sh
 ```
 
+To customize the web frontend port (default `8000`), pass `--port` / `-p` or set `DJANGO_PORT` (or `PORT`) in `.env`:
+```bash
+./run_dev.sh --port 9000
+# or via manage.py directly:
+devenv shell -- uv run python manage.py runserver --port 9000
+```
+
 #### Running Services Manually:
 If you prefer running services in separate terminals:
 
