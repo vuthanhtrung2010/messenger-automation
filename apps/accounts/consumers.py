@@ -2,11 +2,14 @@ import os
 import json
 import asyncio
 import hashlib
+import logging
 from datetime import datetime, timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from apps.accounts.models import MessengerAccount
 from apps.accounts.profile_lock import terminate_lingering_profile_browsers
 from apps.messenger.browser_pool import mark_profile_streaming
+
+logger = logging.getLogger(__name__)
 
 _ACCOUNT_LOCKS: dict[str, asyncio.Lock] = {}
 
@@ -180,6 +183,7 @@ class BrowserStreamConsumer(AsyncWebsocketConsumer):
             except asyncio.CancelledError:
                 return
             except Exception as e:
+                logger.exception("WebSocket stream failed for account %s: %s", self.account_id, e)
                 try:
                     await self.send(text_data=json.dumps({"type": "error", "message": str(e)}))
                     await self.close()

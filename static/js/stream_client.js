@@ -1,4 +1,7 @@
-document.addEventListener('DOMContentLoaded', () => {
+function initStreamClient() {
+    if (window.__streamClientInitialized) return;
+    window.__streamClientInitialized = true;
+
     const scriptMeta = document.getElementById('stream-meta');
     const accountId = scriptMeta ? scriptMeta.getAttribute('data-account-id') : null;
     if (!accountId) return;
@@ -191,4 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     window.addEventListener('pagehide', closeSocketOnUnload);
     window.addEventListener('beforeunload', closeSocketOnUnload);
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStreamClient);
+} else {
+    initStreamClient();
+}
