@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/tokens.css?v=2">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
+    <script data-cfasync="false" src="https://cdn.tailwindcss.com"></script>
+    <script data-cfasync="false">
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -228,7 +228,7 @@
     </main>
     {% endif %}
 
-    <script>
+    <script data-cfasync="false">
         function openMobileSidebar() {
             const sidebar = document.getElementById('app-sidebar');
             const backdrop = document.getElementById('mobile-sidebar-backdrop');

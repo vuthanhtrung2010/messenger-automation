@@ -90,7 +90,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
+<script data-cfasync="false">
 document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('toggle-password');
     const pwdInput = document.getElementById('password');

@@ -21,6 +21,7 @@ def test_login_invalid_credentials_shows_error_and_preserves_username():
     assert 'role="alert"' in html
     assert "Username or password is incorrect" in html
     assert 'value="validadmin"' in html
+    assert '<script data-cfasync="false" src="https://cdn.tailwindcss.com"></script>' in html
 
 
 @pytest.mark.django_db
